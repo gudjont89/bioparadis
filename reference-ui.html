@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bíó Paradís — Showtime Timeline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#08080D;--surface:rgba(255,255,255,0.018);--border:rgba(255,255,255,0.06);--text:#fff;--dim:rgba(255,255,255,0.45);--faint:rgba(255,255,255,0.18);--now:#FF4444;--px:2.8;--card-h:60px;--lane-h:76px;--lane-gap:4px}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:#050508;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:20px 8px;font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased}
+  .app{width:100%;max-width:920px;background:var(--bg);border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,.65);border:1px solid var(--border);display:flex;flex-direction:column}
+
+  .hdr{padding:18px 20px 0;display:flex;align-items:center;justify-content:space-between}
+  .hdr-l{display:flex;align-items:center;gap:10px}
+  .hdr-ico{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#C24D2C,#8A2C6E);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .hdr-t{color:var(--text);font-weight:700;font-size:15px;letter-spacing:-.02em}
+  .hdr-s{color:rgba(255,255,255,.3);font-size:10px;font-family:'JetBrains Mono',monospace}
+
+
+  .dates{display:flex;gap:5px;padding:14px 20px 10px;overflow-x:auto;scrollbar-width:none}
+  .dates::-webkit-scrollbar{display:none}
+  .dc{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--dim);cursor:pointer;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:'DM Sans',sans-serif;transition:all .15s}
+  .dc:hover{background:rgba(255,255,255,.055)}
+  .dc.act{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.09);color:var(--text)}
+  .dc .lb{font-size:12px;font-weight:500;white-space:nowrap}.dc.act .lb{font-weight:700}
+  .dc .sl{font-size:9px;font-weight:600;color:var(--now);text-transform:uppercase;letter-spacing:.05em}
+  .dc .ed{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.15);margin-top:1px}
+
+  .tw{overflow-x:auto;overflow-y:hidden;padding:0 0 8px;flex:1;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.08) transparent}
+  .tw::-webkit-scrollbar{height:5px}.tw::-webkit-scrollbar-track{background:transparent}.tw::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+  .tl{position:relative;padding:26px 20px 6px}
+  .empty{padding:40px 20px;text-align:center;color:var(--dim);font-size:13px}
+  .empty .ei{font-size:28px;margin-bottom:10px;opacity:.5}
+  .empty .em{color:var(--faint);font-size:11px;margin-top:4px;font-family:'JetBrains Mono',monospace}
+  .gl{position:absolute;top:26px;bottom:6px;width:1px;background:rgba(255,255,255,.05)}
+  .gla{position:absolute;top:5px;width:40px;text-align:center;margin-left:-20px;font-size:9px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.22);font-weight:500;user-select:none}
+  .lanes{position:relative;display:flex;flex-direction:column;gap:var(--lane-gap)}
+  .lane{position:relative;height:var(--lane-h);border-radius:5px}.lane:nth-child(odd){background:var(--surface)}
+
+  .card{position:absolute;height:var(--card-h);top:8px;border-radius:7px;overflow:hidden;cursor:pointer;display:flex;align-items:stretch;transition:box-shadow .15s ease,opacity .25s ease,filter .25s ease;z-index:1}
+  .card:hover{box-shadow:0 4px 16px rgba(0,0,0,.5)!important;z-index:5}
+  .card.sel{z-index:10}
+  .card.damp{opacity:.25;filter:saturate(.1) brightness(.65)}.card.damp:hover{opacity:.45;filter:saturate(.25) brightness(.75)}
+  .card.want{box-shadow:0 0 0 2px rgba(255,193,7,.5),0 2px 8px rgba(0,0,0,.35)!important}
+  .cp{width:42px;height:100%;object-fit:cover;flex-shrink:0}
+  .ci{flex:1;min-width:0;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;position:relative}
+  .ct{font-size:11px;font-weight:700;color:#fff;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.01em}
+  .cm{font-size:9.5px;color:rgba(255,255,255,.65);margin-top:3px;font-family:'JetBrains Mono',monospace;font-weight:500}
+
+  /* Badge row — supports multiple badges side by side */
+  .badges{position:absolute;top:2px;right:3px;display:flex;gap:1px;pointer-events:none}
+  .badges span{font-size:11px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+
+  .nl{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--now);z-index:20;border-radius:1px;pointer-events:none}
+  .nd{position:absolute;top:-3px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--now);box-shadow:0 0 10px rgba(255,68,68,.5);animation:pulse 2.5s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 6px rgba(255,68,68,.3)}50%{box-shadow:0 0 16px rgba(255,68,68,.7)}}
+
+  /* Detail panel */
+  .det{display:none;position:relative;padding:16px 16px 14px;background:rgba(12,12,18,.96);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);animation:su .2s ease}
+  .det.open{display:block}
+  @keyframes su{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .det-x{position:absolute;top:10px;right:12px;background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:4px;font-size:18px;line-height:1;z-index:2;transition:color .15s}
+  .det-x:hover{color:rgba(255,255,255,.6)}
+  .det-top{display:flex;align-items:center;gap:14px}
+  .det-poster{width:44px;height:66px;object-fit:cover;border-radius:5px;flex-shrink:0;box-shadow:0 2px 10px rgba(0,0,0,.4)}
+  .det-body{flex:1;min-width:0}
+  .det-title{font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px;padding-right:28px}
+  .det-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.4)}
+  .det-evts{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+  .det-ev{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 4px;border-radius:4px;background:rgba(255,255,255,.06);font-size:10px;color:rgba(255,255,255,.5);font-weight:500}
+  .det-ev .be{font-size:12px}
+
+  .det-actions{display:flex;gap:6px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:6px;color:#fff;text-decoration:none;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;transition:opacity .15s,filter .15s;border:none;cursor:pointer;white-space:nowrap}
+  .btn:hover{filter:brightness(1.15)}
+  .btn-cal{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1)}
+  .sep{width:1px;height:24px;background:rgba(255,255,255,.07);flex-shrink:0}
+  .bt{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);cursor:pointer;transition:all .15s;padding:0;color:rgba(255,255,255,.35);font-size:14px}
+  .bt:hover{background:rgba(255,255,255,.1);color:var(--text)}
+  .bt.aw{background:rgba(255,193,7,.15);border-color:rgba(255,193,7,.4);color:#FFC107}
+  .bt.as{background:rgba(76,175,80,.15);border-color:rgba(76,175,80,.4);color:#4CAF50}
+  .bt.ak{background:rgba(244,67,54,.12);border-color:rgba(244,67,54,.3);color:#F44336}
+
+  .det-upcoming{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05)}
+  .det-up-label{font-size:9px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .det-up-list{display:flex;gap:5px;flex-wrap:wrap}
+  .det-up-chip{padding:4px 8px;border-radius:5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);font-size:10px;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.5);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+  .det-up-chip:hover{background:rgba(255,255,255,.08);color:var(--text)}
+  .det-up-chip .ud{font-weight:600;color:rgba(255,255,255,.65)}
+  .det-up-chip .ut{color:rgba(255,255,255,.4)}
+  .det-up-chip.cur{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:var(--text)}
+  .det-up-chip.cur .ud,.det-up-chip.cur .ut{color:var(--text)}
+  .det-up-chip.past{opacity:.35}
+  .det-up-chip .ub{font-size:10px}
+
+  .foot{padding:6px 20px 12px;font-size:9px;color:var(--faint);font-family:'JetBrains Mono',monospace;text-align:center;line-height:1.5}
+  .foot .lg{display:flex;gap:12px;justify-content:center;margin-top:3px}
+
+  @media(max-width:600px){body{padding:6px 2px}.app{border-radius:12px}.det-top{flex-wrap:wrap}.det-actions{width:100%}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div class="hdr-l">
+      <div class="hdr-ico">🎬</div>
+      <div><div class="hdr-t">Bíó Paradís</div><div class="hdr-s">Hverfisgata 54</div></div>
+    </div>
+
+  </div>
+  <div class="dates" id="dates"></div>
+  <div class="tw" id="tw"><div class="tl" id="tl"></div></div>
+  <div class="det" id="det">
+    <button class="det-x" id="dx">✕</button>
+    <div class="det-top">
+      <img class="det-poster" id="dp" src="" alt="">
+      <div class="det-body">
+        <div class="det-title" id="dt"></div>
+        <div class="det-meta" id="dm"></div>
+        <div class="det-evts" id="devts"></div>
+      </div>
+    </div>
+    <div class="det-actions">
+      <a class="btn" id="dtk" href="#" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg> Tickets</a>
+      <a class="btn btn-cal" id="dcal" href="#" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg> + Cal</a>
+      <div class="sep"></div>
+      <button class="bt" id="bw" title="Want to see">★</button>
+      <button class="bt" id="bs" title="Already seen">✓</button>
+      <button class="bt" id="bk" title="Not interested">✕</button>
+    </div>
+    <div class="det-upcoming" id="du"></div>
+  </div>
+  <div class="foot">
+    tap a screening · track what you've seen and what to skip
+    <div class="lg"><span>★ want</span><span>✓ seen</span><span>✕ skip</span></div>
+  </div>
+</div>
+
+<script>
+const PX=2.8,H0=13,H1=24,MW=100;
+const pad=n=>n<10?"0"+n:""+n;
+const t2m=t=>{const[h,m]=t.split(":").map(Number);return h*60+m};
+const eT=(t,r)=>{const e=t2m(t)+r;return pad(Math.floor(e/60))+":"+pad(e%60)};
+
+/*
+  Event types — scraped from subpages:
+  - /vidburdir/partisyningar/     → party
+  - /vidburdir/svartir-sunnudagar/ → black
+  - /vidburdir/midvikudagsbio/    → midviku
+  - /vidburdir/biotekid/          → biotekid
+  - /vidburdir/thyskir-kvikmyndadagar-2026/ → german
+  - (January festivals)           → french
+
+  Each screening can have MULTIPLE events (matched by ticket URL).
+  In the real app, scrape each subpage, extract ticket URLs, build a lookup:
+    Map<ticketUrl, eventType[]>
+*/
+const EV={
+  german:  {emoji:"🇩🇪",name:"German Film Days"},
+  french:  {emoji:"🇫🇷",name:"French Film Days"},
+  party:   {emoji:"🎉",name:"Partísýning"},
+  black:   {emoji:"🖤",name:"Svartir Sunnudagar"},
+  biotekid:{emoji:"🎞️",name:"Bíótekið"},
+  midviku: {emoji:"📅",name:"Miðvikudagsbíó"},
+};
+
+const M={
+  pillion:       {t:"Pillion",                        r:106,c:"#C24D2C",p:"https://web.iceland.mycloudcinema.com/media/posters/635/1080/46c238f2-9b32-420b-9e77-ed1592c9aea4.jpeg"},
+  secret_agent:  {t:"The Secret Agent",               r:100,c:"#2C6E8A",p:"https://web.iceland.mycloudcinema.com/media/posters/632/1080/d33e7d5b-a616-43c4-bb7d-20fee9c99d26.jpeg"},
+  richest_woman: {t:"The Richest Woman in the World", r:92, c:"#8A5E2C",p:"https://web.iceland.mycloudcinema.com/media/posters/604/1080/b39badf3-91fa-45b4-b3ea-9e41e05484be.jpg"},
+  great_arch:    {t:"The Great Arch",                 r:95, c:"#4A7C3F",p:"https://web.iceland.mycloudcinema.com/media/posters/633/1080/c0315fc2-1017-4576-a369-9e03631024d1.jpg"},
+  sentimental:   {t:"Sentimental Value",              r:110,c:"#6B3FA0",p:"https://web.iceland.mycloudcinema.com/media/posters/627/1080/fbe2348c-0cf5-4580-8a71-728ebd41d78e.jpg"},
+  history_sound: {t:"The History of Sound",            r:98, c:"#A03F5E",p:"https://web.iceland.mycloudcinema.com/media/posters/812/1080/cca08b48-773a-453d-a777-387ee37aff4c.jpg"},
+  ghost:         {t:"Ghost in the Shell",             r:83, c:"#2C8A6E",p:"https://web.iceland.mycloudcinema.com/media/posters/778/1080/e7bd3319-1a5d-43b1-b1bd-0a754820be35.jpeg"},
+  no_other:      {t:"No Other Choice",                r:105,c:"#5E6B3F",p:"https://web.iceland.mycloudcinema.com/media/posters/737/1080/0643e7d5-1e5d-4a6c-9e8d-279b2f72487a.jpg"},
+  dalej:         {t:"Dalej Jazda 2",                  r:88, c:"#8A2C6E",p:"https://web.iceland.mycloudcinema.com/media/posters/779/1080/3a3a7fe3-e436-4570-a7fb-08e2bc695db6.jpg"},
+  dimmalimm:     {t:"Dimmalimm",                      r:75, c:"#3F6BA0",p:"https://web.iceland.mycloudcinema.com/media/posters/804/1080/39011404-5792-4fdc-9c89-63218dc7f309.jpeg"},
+  accident:      {t:"It Was Just an Accident",        r:96, c:"#A07C3F",p:"https://web.iceland.mycloudcinema.com/media/posters/628/1080/ac65094b-bc1f-42a8-8530-a3ffa8df54fa.jpeg"},
+  marielle:      {t:"What Marielle Knows",            r:102,c:"#3FA07C",p:"https://web.iceland.mycloudcinema.com/media/posters/567/1080/1dc81ae7-712a-4983-a278-5230a5fabaa1.jpeg"},
+  amrum:         {t:"Amrum",                          r:94, c:"#7C3FA0",p:"https://web.iceland.mycloudcinema.com/media/posters/601/1080/a5f0df94-ed78-429c-bd75-fa89f391d36b.jpeg"},
+  lenin:         {t:"Good Bye, Lenin!",               r:121,c:"#A0503F",p:"https://web.iceland.mycloudcinema.com/media/posters/761/1080/2ae017c9-7ba5-4956-9798-91b12c41a02a.jpg"},
+};
+
+/*
+  Schedule data. The `ev` field is now an ARRAY to support multiple events per screening.
+  This data was cross-referenced by matching ticket URLs across the event subpages:
+  - Ghost in the Shell 21:00 Sun → found on /svartir-sunnudagar/ (ticket 13386)
+  - Wed 14:00 screenings → found on /midvikudagsbio/ (tickets 14338, 14331, 14345)
+  - Good Bye, Lenin! Fri 21:00 → found on BOTH /partisyningar/ AND /thyskir-kvikmyndadagar-2026/ (ticket 12761)
+  - Marielle Fri 19:00 → /thyskir-kvikmyndadagar-2026/ (ticket 14127)
+  - Amrum Fri 21:00 → /thyskir-kvikmyndadagar-2026/ (ticket 14129)
+*/
+const SC={
+  "2026-02-22":{label:"Sun 22",sub:"Today",iso:"20260222",lanes:[
+    [{m:"dalej",t:"14:25",tk:"https://tickets.bioparadis.is/#/book/14286",ev:[]},{m:"secret_agent",t:"16:00",tk:"https://tickets.bioparadis.is/#/book/14274",ev:[]},{m:"sentimental",t:"18:40",tk:"https://tickets.bioparadis.is/#/book/14295",ev:[]},{m:"ghost",t:"21:00",tk:"https://tickets.bioparadis.is/#/book/13386",ev:["black"]}],
+    [{m:"dimmalimm",t:"14:30",tk:"https://tickets.bioparadis.is/#/book/14273",ev:[]},{m:"richest_woman",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14285",ev:[]},{m:"pillion",t:"18:50",tk:"https://tickets.bioparadis.is/#/book/14287",ev:[]},{m:"no_other",t:"21:30",tk:"https://tickets.bioparadis.is/#/book/14277",ev:[]}],
+    [{m:"accident",t:"14:30",tk:"https://tickets.bioparadis.is/#/book/14281",ev:[]},{m:"great_arch",t:"16:35",tk:"https://tickets.bioparadis.is/#/book/14282",ev:[]},{m:"history_sound",t:"19:00",tk:"https://tickets.bioparadis.is/#/book/14278",ev:[]},{m:"pillion",t:"21:15",tk:"https://tickets.bioparadis.is/#/book/14288",ev:[]}],
+  ]},
+  "2026-02-23":{label:"Mon 23",sub:"",iso:"20260223",lanes:[
+    [{m:"sentimental",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14328",ev:[]},{m:"dalej",t:"19:00",tk:"https://tickets.bioparadis.is/#/book/14351",ev:[]},{m:"pillion",t:"21:10",tk:"https://tickets.bioparadis.is/#/book/14335",ev:[]}],
+    [{m:"great_arch",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14350",ev:[]},{m:"richest_woman",t:"19:00",tk:"https://tickets.bioparadis.is/#/book/14334",ev:[]},{m:"secret_agent",t:"21:20",tk:"https://tickets.bioparadis.is/#/book/14341",ev:[]}],
+    [{m:"history_sound",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14342",ev:[]}],
+  ]},
+  "2026-02-24":{label:"Tue 24",sub:"",iso:"20260224",lanes:[
+    [{m:"dimmalimm",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14348",ev:[]},{m:"secret_agent",t:"18:00",tk:"https://tickets.bioparadis.is/#/book/14340",ev:[]},{m:"sentimental",t:"21:00",tk:"https://tickets.bioparadis.is/#/book/14329",ev:[]}],
+    [{m:"history_sound",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14343",ev:[]},{m:"richest_woman",t:"18:50",tk:"https://tickets.bioparadis.is/#/book/14333",ev:[]},{m:"pillion",t:"21:10",tk:"https://tickets.bioparadis.is/#/book/14336",ev:[]}],
+    [{m:"accident",t:"16:40",tk:"https://tickets.bioparadis.is/#/book/14349",ev:[]},{m:"no_other",t:"21:15",tk:"https://tickets.bioparadis.is/#/book/14347",ev:[]}],
+  ]},
+  "2026-02-25":{label:"Wed 25",sub:"",iso:"20260225",lanes:[
+    [{m:"accident",t:"14:00",tk:"https://tickets.bioparadis.is/#/book/14345",ev:["midviku"]},{m:"richest_woman",t:"16:20",tk:"https://tickets.bioparadis.is/#/book/14332",ev:[]},{m:"secret_agent",t:"18:00",tk:"https://tickets.bioparadis.is/#/book/14339",ev:[]},{m:"dalej",t:"21:00",tk:"https://tickets.bioparadis.is/#/book/14352",ev:[]}],
+    [{m:"sentimental",t:"14:00",tk:"https://tickets.bioparadis.is/#/book/14331",ev:["midviku"]},{m:"no_other",t:"16:20",tk:"https://tickets.bioparadis.is/#/book/14346",ev:[]},{m:"sentimental",t:"18:40",tk:"https://tickets.bioparadis.is/#/book/14330",ev:[]},{m:"history_sound",t:"21:10",tk:"https://tickets.bioparadis.is/#/book/14344",ev:[]}],
+    [{m:"pillion",t:"14:00",tk:"https://tickets.bioparadis.is/#/book/14338",ev:["midviku"]},{m:"dimmalimm",t:"16:30",tk:"https://tickets.bioparadis.is/#/book/14353",ev:[]},{m:"great_arch",t:"19:00",tk:"https://tickets.bioparadis.is/#/book/14354",ev:[]},{m:"pillion",t:"21:10",tk:"https://tickets.bioparadis.is/#/book/14337",ev:[]}],
+  ]},
+  "2026-02-26":{label:"Thu 26",sub:"",iso:"20260226",lanes:[]},
+  "2026-02-27":{label:"Fri 27",sub:"",iso:"20260227",lanes:[
+    [{m:"marielle",t:"19:00",tk:"https://tickets.bioparadis.is/#/book/14127",ev:["german"]}],
+    [{m:"amrum",t:"21:00",tk:"https://tickets.bioparadis.is/#/book/14129",ev:["german"]}],
+    [{m:"lenin",t:"21:00",tk:"https://tickets.bioparadis.is/#/book/12761",ev:["german","party"]}],
+  ]},
+};
+
+/* Tracking */
+let tr={};try{tr=JSON.parse(localStorage.getItem("bp_tr")||"{}")}catch(e){}
+const sv=()=>{try{localStorage.setItem("bp_tr",JSON.stringify(tr))}catch(e){}};
+const gS=id=>tr[id]||null;
+const sS=(id,s)=>{tr[id]===s?delete tr[id]:tr[id]=s;sv()};
+
+/* All screenings for a movie */
+function allScr(mid){
+  const r=[];
+  for(const[d,day]of Object.entries(SC)){
+    if(!day.lanes)continue;
+    for(const lane of day.lanes)for(const s of lane)
+      if(s.m===mid)r.push({date:d,label:day.label,time:s.t,tk:s.tk,ev:s.ev||[]});
+  }
+  return r;
+}
+
+/* No show/hide toggle — dampened cards always visible */
+
+const dates=Object.keys(SC);
+let aD=dates[0],selC=null,selS=null;
+
+function renderDates(){
+  const el=document.getElementById("dates");el.innerHTML="";
+  dates.forEach(d=>{
+    const day=SC[d],empty=!day.lanes||!day.lanes.length||day.lanes.every(l=>!l.length);
+    const c=document.createElement("button");c.className="dc"+(d===aD?" act":"");
+    let h=`<span class="lb">${day.label}</span>`;
+    if(day.sub)h+=`<span class="sl">${day.sub}</span>`;else if(empty)h+=`<span class="ed"></span>`;
+    c.innerHTML=h;
+    c.onclick=()=>{aD=d;selC=null;selS=null;renderDates();renderTL();closeDet()};
+    el.appendChild(c);
+  });
+}
+
+function badgeHtml(evArr){
+  if(!evArr||!evArr.length)return"";
+  return'<div class="badges">'+evArr.map(e=>EV[e]?`<span>${EV[e].emoji}</span>`:"").join("")+"</div>";
+}
+
+function renderTL(){
+  const wrap=document.getElementById("tw"),tl=document.getElementById("tl"),day=SC[aD];
+  if(!day.lanes||!day.lanes.length||day.lanes.every(l=>!l.length)){
+    tl.style.width="auto";
+    tl.innerHTML='<div class="empty"><div class="ei">📋</div><div>No screenings scheduled</div><div class="em">schedule will appear when available</div></div>';return;
+  }
+  const W=(H1-H0)*60*PX+60;tl.style.width=W+"px";tl.innerHTML="";
+  for(let h=H0;h<=H1;h++){const x=(h-H0)*60*PX+20;
+    const l=document.createElement("div");l.className="gl";l.style.left=x+"px";tl.appendChild(l);
+    const lb=document.createElement("div");lb.className="gla";lb.style.left=x+"px";lb.textContent=pad(h)+":00";tl.appendChild(lb);
+  }
+  const ls=document.createElement("div");ls.className="lanes";
+  day.lanes.forEach((lane,li)=>{
+    const le=document.createElement("div");le.className="lane";
+    lane.forEach((s,si)=>{
+      const mv=M[s.m],st=gS(s.m),isDamp=st==="seen"||st==="skip";
+      const off=t2m(s.t)-H0*60,w=Math.max(mv.r*PX,MW),left=off*PX;
+      const cid=`${aD}-${li}-${si}`,isSel=selC===cid;
+      const card=document.createElement("div");
+      let cls="card";if(isSel)cls+=" sel";if(isDamp)cls+=" damp";if(st==="want")cls+=" want";
+      card.className=cls;card.style.left=left+"px";card.style.width=w+"px";card.style.background=mv.c;
+      if(isSel)card.style.boxShadow=`0 4px 20px ${mv.c}88, 0 0 0 2px #fff`;
+      else if(st!=="want")card.style.boxShadow="0 2px 8px rgba(0,0,0,.35)";
+      card.innerHTML=`<img class="cp" src="${mv.p}" alt="" loading="lazy"><div class="ci" style="background:linear-gradient(135deg,${mv.c}ee,${mv.c}cc)"><div class="ct">${mv.t}</div><div class="cm">${s.t} · ${mv.r}m</div>${badgeHtml(s.ev)}</div>`;
+      card.onclick=()=>{selC=cid;selS=s;renderTL();showDet(s,mv)};
+      le.appendChild(card);
+    });
+    if(li===0&&aD===dates[0]){const now=new Date(),nm=now.getHours()*60+now.getMinutes()-H0*60;
+      if(nm>=0&&nm<=(H1-H0)*60){const nl=document.createElement("div");nl.className="nl";nl.style.left=(nm*PX)+"px";nl.innerHTML='<div class="nd"></div>';le.appendChild(nl)}}
+    ls.appendChild(le);
+  });
+  tl.appendChild(ls);
+  if(aD===dates[0]){const now=new Date(),nm=now.getHours()*60+now.getMinutes()-H0*60;wrap.scrollLeft=Math.max(0,nm*PX-120)}
+  else{const f=day.lanes.flat()[0];if(f)wrap.scrollLeft=Math.max(0,(t2m(f.t)-H0*60)*PX-40)}
+}
+
+function showDet(s,mv){
+  const p=document.getElementById("det"),iso=SC[aD].iso,end=eT(s.t,mv.r);
+  const cs=iso+"T"+s.t.replace(":","")+"00",ce=iso+"T"+end.replace(":","")+"00";
+  const cu=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Bíó Paradís: "+mv.t)}&dates=${cs}/${ce}&location=${encodeURIComponent("Hverfisgata 54, 101 Reykjavík")}&details=${encodeURIComponent("Buy tickets: "+s.tk)}`;
+  p.style.borderTopColor=mv.c;
+  document.getElementById("dp").src=mv.p;
+  document.getElementById("dt").textContent=mv.t;
+  document.getElementById("dm").textContent=`${s.t} – ${end} · ${mv.r} min`;
+
+  // Event pills — multiple
+  const evtsEl=document.getElementById("devts");
+  if(s.ev&&s.ev.length){
+    evtsEl.innerHTML=s.ev.map(e=>EV[e]?`<div class="det-ev"><span class="be">${EV[e].emoji}</span>${EV[e].name}</div>`:"").join("");
+    evtsEl.style.display="flex";
+  }else{evtsEl.innerHTML="";evtsEl.style.display="none"}
+
+  const tb=document.getElementById("dtk");tb.href=s.tk;tb.style.background=mv.c;
+  document.getElementById("dcal").href=cu;
+  const st=gS(s.m);
+  updB("bw",st==="want","aw");updB("bs",st==="seen","as");updB("bk",st==="skip","ak");
+
+  // Upcoming
+  const du=document.getElementById("du"),all=allScr(s.m);
+  if(all.length>1){
+    let h='<div class="det-up-label">All showtimes</div><div class="det-up-list">';
+    all.forEach(sc=>{
+      const isCur=sc.date===aD&&sc.time===s.t;
+      const isPast=sc.date<aD;
+      let cls="det-up-chip";if(isCur)cls+=" cur";if(isPast)cls+=" past";
+      const evBadges=sc.ev.map(e=>EV[e]?`<span class="ub">${EV[e].emoji}</span>`:"").join("");
+      h+=`<a class="${cls}" href="${sc.tk}" target="_blank" rel="noopener"><span class="ud">${sc.label}</span><span class="ut">${sc.time}</span>${evBadges}</a>`;
+    });
+    h+="</div>";du.innerHTML=h;du.style.display="block";
+  }else{du.innerHTML="";du.style.display="none"}
+  p.className="det open";
+}
+
+function updB(id,on,cls){const b=document.getElementById(id);b.classList.remove("aw","as","ak");if(on)b.classList.add(cls)}
+function closeDet(){document.getElementById("det").className="det";selC=null;selS=null}
+document.getElementById("dx").onclick=()=>{closeDet();renderTL()};
+function doTr(st){if(!selS)return;sS(selS.m,st);showDet(selS,M[selS.m]);renderTL()}
+document.getElementById("bw").onclick=()=>doTr("want");
+document.getElementById("bs").onclick=()=>doTr("seen");
+document.getElementById("bk").onclick=()=>doTr("skip");
+
+renderDates();renderTL();
+</script>
+</body>
+</html>
