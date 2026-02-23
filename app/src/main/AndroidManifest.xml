@@ -6,7 +6,6 @@
     <application
         android:name=".BioParadisApp"
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
         android:label="Bíó Paradís"
         android:supportsRtl="true"
         android:theme="@style/Theme.BioParadis">
