@@ -152,8 +152,18 @@ class ScheduleRepository(
             for (dayData in dayDataList) {
                 val dayScreenings = dayData.rawScreenings.map { raw ->
                     val runtime = runtimeMap[raw.movieId] ?: DEFAULT_RUNTIME
-                    val events = eventMap[raw.ticketUrl] ?: emptyList()
                     val color = MovieColorAssigner.colorForMovie(raw.movieId)
+
+                    // Events from ticket URL cross-reference (event page scraping)
+                    val eventsFromTicket = if (raw.ticketUrl.isNotEmpty()) {
+                        eventMap[raw.ticketUrl] ?: emptyList()
+                    } else emptyList()
+
+                    // Events from inline HTML label (<span class="event">)
+                    val eventsFromLabel = resolveEventLabel(raw.eventLabel)
+
+                    // Merge both sources, deduplicate
+                    val events = (eventsFromLabel + eventsFromTicket).distinct()
 
                     movieEntities[raw.movieId] = MovieEntity(
                         id = raw.movieId,
@@ -193,7 +203,13 @@ class ScheduleRepository(
             db.screeningDao().clearAll()
             db.movieDao().upsertAll(movieEntities.values.toList())
             db.screeningDao().upsertAll(allScreenings.map { screening ->
+                val entityId = if (screening.ticketUrl.isNotEmpty()) {
+                    screening.ticketUrl
+                } else {
+                    "${screening.movie.id}_${screening.date}_${screening.time}"
+                }
                 ScreeningEntity(
+                    id = entityId,
                     ticketUrl = screening.ticketUrl,
                     movieId = screening.movie.id,
                     date = screening.date.toString(),
@@ -230,6 +246,23 @@ class ScheduleRepository(
             ticketUrl = entity.ticketUrl,
             events = events,
             lane = entity.lane,
+        )
+    }
+
+    private fun resolveEventLabel(label: String): List<EventType> {
+        if (label.isBlank()) return emptyList()
+        val lower = label.lowercase()
+        return listOfNotNull(
+            when {
+                lower.contains("partí") || lower.contains("party") -> EventType.PARTY
+                lower.contains("svartir") || lower.contains("sunnudag") -> EventType.BLACK_SUNDAY
+                lower.contains("miðvikudag") -> EventType.MIDVIKU
+                lower.contains("bíótekið") || lower.contains("biotekid") -> EventType.BIOTEKID
+                lower.contains("þýskir") || lower.contains("german") -> EventType.GERMAN_DAYS
+                lower.contains("fronskir") || lower.contains("french") || lower.contains("frönsk") || lower.contains("franska") -> EventType.FRENCH_DAYS
+                lower.contains("kvöldstund") -> EventType.PARTY // "Kvöldstund með..." events
+                else -> null
+            }
         )
     }
 

@@ -163,7 +163,7 @@ private fun LaneRow(
             MovieCard(
                 screening = screening,
                 trackingStatus = tracking[screening.movie.id],
-                isSelected = selectedScreening?.ticketUrl == screening.ticketUrl,
+                isSelected = selectedScreening?.uniqueId == screening.uniqueId,
                 cardWidth = cardWidth,
                 onClick = { onScreeningClick(screening) },
                 modifier = Modifier

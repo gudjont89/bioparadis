@@ -126,11 +126,19 @@ fun ScreeningDetailSheet(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // Tickets button
-            ActionButton(
-                label = "Tickets",
-                bgColor = cardColor,
-                onClick = onTicketsClick,
-            )
+            if (screening.ticketUrl.isNotEmpty()) {
+                ActionButton(
+                    label = "Tickets",
+                    bgColor = cardColor,
+                    onClick = onTicketsClick,
+                )
+            } else {
+                ActionButton(
+                    label = "Tickets N/A",
+                    bgColor = Color.White.copy(alpha = 0.07f),
+                    onClick = {},
+                )
+            }
 
             // Calendar button
             ActionButton(

@@ -11,4 +11,9 @@ data class Screening(
     val ticketUrl: String,
     val events: List<EventType>,
     val lane: Int,
-)
+) {
+    /** Unique identifier: ticket URL if available, else synthetic key */
+    val uniqueId: String
+        get() = if (ticketUrl.isNotEmpty()) ticketUrl else "${movie.id}_${date}_${time}"
+}
+

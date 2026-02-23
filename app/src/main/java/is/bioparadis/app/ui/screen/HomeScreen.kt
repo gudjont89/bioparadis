@@ -137,16 +137,20 @@ fun HomeScreen(viewModel: HomeViewModel) {
                         viewModel.toggleTracking(screening.movie.id, status)
                     },
                     onTicketsClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(screening.ticketUrl))
-                        context.startActivity(intent)
+                        if (screening.ticketUrl.isNotEmpty()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(screening.ticketUrl))
+                            context.startActivity(intent)
+                        }
                     },
                     onCalendarClick = {
                         val intent = CalendarIntentHelper.createIntent(screening)
                         context.startActivity(intent)
                     },
                     onShowtimeClick = { ticketUrl ->
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ticketUrl))
-                        context.startActivity(intent)
+                        if (ticketUrl.isNotEmpty()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ticketUrl))
+                            context.startActivity(intent)
+                        }
                     },
                 )
             }

@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 
 @Database(
     entities = [MovieEntity::class, ScreeningEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

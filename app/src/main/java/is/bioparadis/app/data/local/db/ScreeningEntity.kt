@@ -16,7 +16,8 @@ import androidx.room.PrimaryKey
     indices = [Index("movieId"), Index("date")],
 )
 data class ScreeningEntity(
-    @PrimaryKey val ticketUrl: String,
+    @PrimaryKey val id: String, // ticketUrl if available, else "movieId_date_time"
+    val ticketUrl: String,
     val movieId: String,
     val date: String,
     val time: String,

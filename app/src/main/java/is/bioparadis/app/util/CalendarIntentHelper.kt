@@ -21,7 +21,12 @@ object CalendarIntentHelper {
             putExtra(CalendarContract.Events.EVENT_LOCATION, "Hverfisgata 54, 101 Reykjavík")
             putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
             putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
-            putExtra(CalendarContract.Events.DESCRIPTION, "Buy tickets: ${screening.ticketUrl}")
+            val desc = if (screening.ticketUrl.isNotEmpty()) {
+                "Buy tickets: ${screening.ticketUrl}"
+            } else {
+                "https://bioparadis.is${screening.movie.detailUrl}"
+            }
+            putExtra(CalendarContract.Events.DESCRIPTION, desc)
         }
     }
 }

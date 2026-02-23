@@ -17,7 +17,9 @@ class BioParadisApp : Application() {
 
         val client = NetworkModule.provideOkHttpClient()
         val api = NetworkModule.provideApi(client)
-        val database = Room.databaseBuilder(this, AppDatabase::class.java, "bioparadis.db").build()
+        val database = Room.databaseBuilder(this, AppDatabase::class.java, "bioparadis.db")
+            .fallbackToDestructiveMigration()
+            .build()
         val trackingStore = TrackingStore(this)
 
         repository = ScheduleRepository(api, database, trackingStore)

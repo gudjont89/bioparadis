@@ -1,6 +1,7 @@
 package `is`.bioparadis.app.data.parser
 
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import java.time.LocalDate
 
 data class DayData(
@@ -18,6 +19,7 @@ data class RawScreening(
     val time: String,
     val subtitleType: String,
     val ticketUrl: String,
+    val eventLabel: String = "",
 )
 
 object HomepageParser {
@@ -28,81 +30,65 @@ object HomepageParser {
         "sep" to 9, "okt" to 10, "nóv" to 11, "des" to 12,
     )
 
-    private val DAY_NAMES = mapOf(
-        "Mán" to "Mon", "Þri" to "Tue", "Mið" to "Wed",
-        "Fim" to "Thu", "Fös" to "Fri", "Lau" to "Sat", "Sun" to "Sun",
-    )
-
     fun parse(html: String): List<DayData> {
         val doc = Jsoup.parse(html)
         val result = mutableListOf<DayData>()
 
-        // Find date tabs — they are <li> elements inside the date selector
-        val dateTabs = doc.select("ul.schedule-dates li, ul.dates li, .date-tabs li, .day-selector li")
-        // Fallback: look for any tab-like structure with date text
-        val tabs = if (dateTabs.isNotEmpty()) dateTabs else doc.select("li").filter { li ->
-            val text = li.text()
-            ICELANDIC_MONTHS.keys.any { text.lowercase().contains(it) }
-        }
+        // Strategy 1: Find date tabs with data-div attributes (preferred)
+        // These are <a class="getFilms" data-div="shows_2026-02-23">
+        val dateTabs = doc.select("a.getFilms[data-div]")
 
-        // Find screening sections — each day has a section/div/ul with movie listings
-        val sections = doc.select("ul.schedule-day, .schedule-section, .day-screenings")
-        val fallbackSections = if (sections.isNotEmpty()) sections else {
-            // The site renders all days in one page; look for structures that contain
-            // movie listings with ticket links
-            doc.select("ul").filter { ul ->
-                ul.select("a[href*=tickets.bioparadis.is]").isNotEmpty()
+        if (dateTabs.isNotEmpty()) {
+            for (tab in dateTabs) {
+                val divId = tab.attr("data-div") // e.g. "shows_2026-02-23"
+                val date = parseDateFromDivId(divId) ?: continue
+                val label = formatDateLabel(date)
+
+                // Find the corresponding day section by id
+                val dayDiv = doc.getElementById(divId)
+                val screenings = if (dayDiv != null) {
+                    parseDaySection(dayDiv)
+                } else {
+                    emptyList()
+                }
+
+                result.add(DayData(date = date, label = label, rawScreenings = screenings))
             }
+            return result
         }
 
-        // Parse dates from tabs
-        val dates = tabs.mapNotNull { tab -> parseDateFromText(tab.text()) }
-
-        // If we couldn't find structured tabs, try to parse the page more broadly
-        if (dates.isEmpty() || fallbackSections.isEmpty()) {
-            return parseFallback(doc)
-        }
-
-        // Match each date with its screening section
-        for ((index, date) in dates.withIndex()) {
-            val screenings = if (index < fallbackSections.size) {
-                parseScreeningSection(fallbackSections[index])
-            } else {
-                emptyList()
+        // Strategy 2: Find div.shows sections directly by id pattern
+        val showDivs = doc.select("div.shows[id^=shows_]")
+        if (showDivs.isNotEmpty()) {
+            for (div in showDivs) {
+                val date = parseDateFromDivId(div.id()) ?: continue
+                val label = formatDateLabel(date)
+                val screenings = parseDaySection(div)
+                result.add(DayData(date = date, label = label, rawScreenings = screenings))
             }
-
-            val label = formatDateLabel(date)
-            result.add(DayData(date = date, label = label, rawScreenings = screenings))
+            return result
         }
 
-        return result
+        // Strategy 3: Fallback — look for date text in tab-like elements
+        return parseFallback(doc)
     }
 
-    private fun parseFallback(doc: org.jsoup.nodes.Document): List<DayData> {
-        // Broad approach: find all movie blocks and group by context
-        val result = mutableListOf<DayData>()
-        val today = LocalDate.now()
-
-        // Look for all elements that contain movie links and ticket links
-        val movieBlocks = doc.select("li:has(a[href*=/mynd/]):has(a[href*=tickets.bioparadis.is])")
-
-        if (movieBlocks.isEmpty()) return result
-
-        // Group all screenings under today as a fallback
-        val screenings = movieBlocks.flatMap { parseMovieBlock(it) }
-        if (screenings.isNotEmpty()) {
-            result.add(DayData(date = today, label = formatDateLabel(today), rawScreenings = screenings))
+    private fun parseDateFromDivId(divId: String): LocalDate? {
+        // Format: "shows_2026-02-23"
+        val dateStr = divId.removePrefix("shows_")
+        return try {
+            LocalDate.parse(dateStr)
+        } catch (_: Exception) {
+            null
         }
-
-        return result
     }
 
-    private fun parseScreeningSection(section: org.jsoup.nodes.Element): List<RawScreening> {
-        val movieBlocks = section.select("li:has(a[href*=/mynd/])")
-        return movieBlocks.flatMap { parseMovieBlock(it) }
+    private fun parseDaySection(dayDiv: Element): List<RawScreening> {
+        val movieItems = dayDiv.select("li:has(a[href*=/mynd/])")
+        return movieItems.flatMap { parseMovieBlock(it) }
     }
 
-    private fun parseMovieBlock(block: org.jsoup.nodes.Element): List<RawScreening> {
+    private fun parseMovieBlock(block: Element): List<RawScreening> {
         val results = mutableListOf<RawScreening>()
 
         // Movie detail link: /mynd/{id}_{slug}/
@@ -110,41 +96,49 @@ object HomepageParser {
         val detailUrl = movieLink.attr("href")
         val (movieId, movieSlug) = parseMovieIdSlug(detailUrl) ?: return results
 
-        // Title from <h4> or the link text
-        val title = block.selectFirst("h4")?.text()
-            ?: movieLink.text().takeIf { it.isNotBlank() }
+        // Title from <h4>
+        val title = block.selectFirst("h4")?.text()?.trim()
+            ?: movieLink.text().takeIf { it.isNotBlank() }?.trim()
             ?: return results
 
-        // Poster URL from <img>
+        // Poster URL from <img> (use src, as data-src is often empty)
         val posterUrl = block.selectFirst("img[src*=mycloudcinema]")?.attr("src")
             ?: block.selectFirst("img")?.attr("src")
             ?: ""
 
-        // Showtimes: each <li> inside the inner <ul> has time + subtitle + ticket link
-        val showtimeItems = block.select("ul li:has(a[href*=tickets.bioparadis.is])")
+        // Event label from <span class="event"> on the poster
+        val eventLabel = block.selectFirst("span.event")?.text()?.trim() ?: ""
+
+        // Showtimes: each <li> inside <ul class="timar">
+        val showtimeItems = block.select("ul.timar > li")
 
         for (item in showtimeItems) {
-            val ticketLink = item.selectFirst("a[href*=tickets.bioparadis.is]") ?: continue
-            val ticketUrl = ticketLink.attr("href")
-            val text = item.text()
-
-            // Extract time (HH:MM pattern)
-            val timeMatch = Regex("""(\d{1,2}:\d{2})""").find(text)
+            // Time from <div class="top-showtime">
+            val topShowtime = item.selectFirst("div.top-showtime")
+            val timeText = topShowtime?.ownText()?.trim() ?: ""
+            val timeMatch = Regex("""(\d{1,2}:\d{2})""").find(timeText)
             val time = timeMatch?.value ?: continue
 
-            // Extract subtitle type (everything between time and "KAUPA"/"BUY")
-            val subtitleType = extractSubtitleType(text)
+            // Subtitle type from <span class="sub">
+            val subtitleType = item.selectFirst("span.sub")?.text()?.trim() ?: ""
+
+            // Ticket URL from the buy button link
+            val ticketLink = item.selectFirst("div.bottom-buy-ticket a")
+            val ticketUrl = ticketLink?.attr("href") ?: ""
+            // Skip javascript:void(0) — treat as empty
+            val resolvedTicketUrl = if (ticketUrl.startsWith("javascript:")) "" else ticketUrl
 
             results.add(
                 RawScreening(
                     movieId = movieId,
                     movieSlug = movieSlug,
-                    movieTitle = title.trim(),
+                    movieTitle = title,
                     posterUrl = posterUrl,
                     detailUrl = detailUrl,
                     time = time,
                     subtitleType = subtitleType,
-                    ticketUrl = ticketUrl,
+                    ticketUrl = resolvedTicketUrl,
+                    eventLabel = eventLabel,
                 )
             )
         }
@@ -152,20 +146,41 @@ object HomepageParser {
         return results
     }
 
+    private fun parseFallback(doc: org.jsoup.nodes.Document): List<DayData> {
+        val result = mutableListOf<DayData>()
+
+        // Try to find any li elements with date text
+        val tabs = doc.select("li").filter { li ->
+            val text = li.text().lowercase()
+            ICELANDIC_MONTHS.keys.any { text.contains(it) } &&
+                Regex("""\d{1,2}\.\s*\w{3}""").containsMatchIn(text)
+        }
+
+        val dates = tabs.mapNotNull { parseDateFromText(it.text()) }
+
+        // If we found date tabs, look for movie blocks grouped nearby
+        if (dates.isEmpty()) {
+            // Last resort: everything under today
+            val today = LocalDate.now()
+            val allMovieBlocks = doc.select("li:has(a[href*=/mynd/])")
+            val screenings = allMovieBlocks.flatMap { parseMovieBlock(it) }
+            if (screenings.isNotEmpty()) {
+                result.add(DayData(date = today, label = formatDateLabel(today), rawScreenings = screenings))
+            }
+            return result
+        }
+
+        // Group all screenings per date if we can find the structure
+        for (date in dates) {
+            result.add(DayData(date = date, label = formatDateLabel(date), rawScreenings = emptyList()))
+        }
+        return result
+    }
+
     private fun parseMovieIdSlug(url: String): Pair<String, String>? {
         // URL format: /mynd/{id}_{slug}/ or https://bioparadis.is/mynd/{id}_{slug}/
         val match = Regex("""/mynd/(\d+)_([^/]+)/?""").find(url) ?: return null
         return match.groupValues[1] to match.groupValues[2]
-    }
-
-    private fun extractSubtitleType(text: String): String {
-        return when {
-            text.contains("ENG SUB", ignoreCase = true) -> "ENG SUB"
-            text.contains("ICE SUB", ignoreCase = true) -> "ICE SUB"
-            text.contains("NO SUB", ignoreCase = true) -> "NO SUB"
-            text.contains("ÍSL TAL", ignoreCase = true) -> "ÍSL TAL"
-            else -> ""
-        }
     }
 
     fun parseDateFromText(text: String): LocalDate? {

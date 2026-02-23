@@ -53,7 +53,7 @@ fun AllShowtimesRow(
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             for (showtime in allShowtimes) {
-                val isCurrent = showtime.ticketUrl == currentScreening.ticketUrl
+                val isCurrent = showtime.uniqueId == currentScreening.uniqueId
                 val isPast = showtime.date < currentDate
 
                 ShowtimeChip(
