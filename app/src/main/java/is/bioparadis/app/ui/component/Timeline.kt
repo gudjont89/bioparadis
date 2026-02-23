@@ -29,7 +29,6 @@ import `is`.bioparadis.app.ui.theme.JetBrainsMono
 import `is`.bioparadis.app.ui.theme.SurfaceVariant
 import `is`.bioparadis.app.util.toMinutesSinceMidnight
 import java.time.LocalTime
-import kotlin.math.max
 
 private const val PX_PER_MIN = 2.8f
 private const val HOUR_START = 13
@@ -158,10 +157,8 @@ private fun LaneRow(
         for (screening in screenings) {
             val minuteOffset = screening.time.toMinutesSinceMidnight() - (HOUR_START * 60)
             val xOffset = (minuteOffset * PX_PER_MIN).dp
-            val cardWidth = max(
-                (screening.movie.runtime * PX_PER_MIN).dp,
-                MIN_CARD_WIDTH,
-            )
+            val computed = (screening.movie.runtime * PX_PER_MIN).dp
+            val cardWidth = if (computed > MIN_CARD_WIDTH) computed else MIN_CARD_WIDTH
 
             MovieCard(
                 screening = screening,
