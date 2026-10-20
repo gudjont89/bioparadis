@@ -34,7 +34,7 @@ Tracking is stored in `localStorage` (`bp_tr`), all behind `useTracking()` in `s
 
 ## Deploying
 
-Repo settings → Pages → Source: **GitHub Actions**. The workflow in `.github/workflows/deploy.yml` runs on push to `master`, every 3 hours, and manually. GitHub pauses scheduled workflows after 60 days without repo activity.
+Repo settings → Pages → Source: **GitHub Actions**. The workflow in `.github/workflows/deploy.yml` runs on push to `master`, every few hours, and manually. GitHub pauses scheduled workflows after 60 days without repo activity.
 
 ## Scraping notes
 

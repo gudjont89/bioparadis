@@ -4,8 +4,7 @@ on:
   push:
     branches: [master]
   schedule:
-    # Every 3 hours. The cinema usually updates the schedule Thu/Fri.
-    - cron: "17 */3 * * *"
+    - cron: "17 */8 * * *"
   workflow_dispatch:
 
 permissions:
