@@ -71,7 +71,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #fff; outline-offset:
 .gl { position: absolute; left: var(--gutter); right: 0; height: 1px; background: rgba(255, 255, 255, 0.05); }
 .gla {
   position: absolute; left: 0; width: var(--gutter); transform: translateY(-50%); text-align: center;
-  font-size: 9px; font-family: var(--mono); color: rgba(255, 255, 255, 0.22); font-weight: 500; user-select: none;
+  font-size: 9px; font-family: var(--mono); color: var(--dim); font-weight: 500; user-select: none;
 }
 .lanes {
   position: absolute; top: 0; bottom: 0; left: var(--gutter); right: 12px;
