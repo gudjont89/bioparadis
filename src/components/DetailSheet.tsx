@@ -29,7 +29,14 @@ export function DetailSheet({ screening, movie, allShowings, status, now, onTrac
   }, [onClose]);
 
   return (
-    <section class="det open" style={{ borderTopColor: movie.color }} aria-label={`${movie.title} details`}>
+    <>
+    <div class="backdrop" onClick={onClose} aria-hidden="true" />
+    <section
+      class="det"
+      role="dialog"
+      aria-label={`${movie.title} details`}
+      style={{ borderTopColor: movie.color }}
+    >
       <button class="det-x" onClick={onClose} aria-label="Close">
         ✕
       </button>
@@ -118,5 +125,6 @@ export function DetailSheet({ screening, movie, allShowings, status, now, onTrac
         </div>
       )}
     </section>
+    </>
   );
 }

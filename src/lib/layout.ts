@@ -1,14 +1,20 @@
 import { timeToMinutes } from "../shared/lanes";
 import type { Movie, Screening } from "../shared/types";
 
-/** Pixels per minute on the timeline. */
-export const PX_PER_MIN = 2.8;
-export const MIN_CARD_WIDTH = 100;
-/** Left padding of the timeline; grid lines are offset by this. */
-export const TIMELINE_PAD = 20;
+/** Pixels per minute along the (vertical) time axis. */
+export const PX_PER_MIN = 1.8;
+/** Short films stay tappable and fit a two-line title plus the meta row. */
+export const MIN_CARD_HEIGHT = 56;
+/** Space above the first and below the last hour line. */
+export const TIMELINE_PAD_Y = 16;
 
-export function cardWidth(runtime: number): number {
-  return Math.max(runtime * PX_PER_MIN, MIN_CARD_WIDTH);
+export function cardHeight(runtime: number): number {
+  return Math.max(runtime * PX_PER_MIN, MIN_CARD_HEIGHT);
+}
+
+/** Y offset of a minute-of-day within the timeline, given the first visible minute. */
+export function minuteToY(minutes: number, rangeStartMinutes: number): number {
+  return (minutes - rangeStartMinutes) * PX_PER_MIN + TIMELINE_PAD_Y;
 }
 
 /**

@@ -56,7 +56,7 @@ export function App() {
   const selectedMovie = selected ? movies[selected.movieId] : undefined;
 
   return (
-    <div class="app">
+    <div class={`app${selected && selectedMovie ? " has-sheet" : ""}`}>
       <header class="hdr">
         <div class="hdr-ico" aria-hidden="true">🎬</div>
         <div>

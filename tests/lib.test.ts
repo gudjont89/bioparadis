@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { googleCalendarUrl, icsFile, screeningWindow } from "../src/lib/calendar";
-import { hourRange } from "../src/lib/layout";
+import { cardHeight, hourRange, MIN_CARD_HEIGHT, minuteToY, PX_PER_MIN, TIMELINE_PAD_Y } from "../src/lib/layout";
 import { dayLabel, endTime, formatMinutes, hasStarted, reykjavikNow } from "../src/lib/time";
 import { readTracking, toggled } from "../src/lib/tracking";
 import type { Movie, Screening } from "../src/shared/types";
@@ -64,6 +64,18 @@ describe("calendar", () => {
     expect(ics).toContain("DTEND:20261024T010100Z");
     expect(ics).toContain("SUMMARY:Bíó Paradís: Pillion\\, The Film");
     expect(ics.trimEnd().endsWith("END:VCALENDAR")).toBe(true);
+  });
+});
+
+describe("vertical layout", () => {
+  it("scales card height with runtime but never below the minimum", () => {
+    expect(cardHeight(100)).toBeCloseTo(100 * PX_PER_MIN);
+    expect(cardHeight(10)).toBe(MIN_CARD_HEIGHT);
+  });
+
+  it("maps minutes to a y offset from the first visible hour", () => {
+    expect(minuteToY(13 * 60, 13 * 60)).toBe(TIMELINE_PAD_Y);
+    expect(minuteToY(14 * 60, 13 * 60)).toBeCloseTo(TIMELINE_PAD_Y + 60 * PX_PER_MIN);
   });
 });
 
