@@ -1,11 +1,7 @@
-*.iml
-.gradle
-/local.properties
-/.idea
+node_modules
+dist
+public/schedule.json
+*.tsbuildinfo
 .DS_Store
-/build
-/app/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+.idea
+.vscode

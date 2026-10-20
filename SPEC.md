@@ -1,10 +1,12 @@
 # Bíó Paradís — Android App Implementation Spec
 
+> **Status:** the project has moved from a native Android app to a static TypeScript site (Vite + Preact, GitHub Pages, scheduled scraping). See [README.md](README.md). The product behaviour (§1–2, §3.1–3.4, §6) still applies; the Kotlin/Compose stack and layout sketches (§4, §5.2) are historical, and the prototype is now `docs/reference-ui.html`.
+
 ## 1. Product Overview
 
 A lightweight Android app for browsing the weekly screening schedule at Bíó Paradís (Hverfisgata 54, 101 Reykjavík), featuring a horizontal Gantt-style timeline, Google Calendar integration, and personal movie tracking.
 
-See `reference-ui.html` for the interactive HTML prototype of the target UI.
+See `docs/reference-ui.html` for the interactive HTML prototype of the target UI.
 
 ---
 
