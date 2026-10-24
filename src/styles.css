@@ -8,6 +8,7 @@
   --now: #ff4444;
   --gutter: 44px;
   --lane-gap: 4px;
+  --lane-hd-h: 22px;
   --mono: "JetBrains Mono", monospace;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,9 +40,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid #fff; outline-offset:
 
 /* light bar: the logos have black lettering */
 .hdr { padding: 8px 10px; background: #f4f1ea; }
-.cinemas { display: flex; flex-wrap: wrap; gap: 4px; }
+.cinemas { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.cinemas::-webkit-scrollbar { display: none; }
 .cin {
-  padding: 8px 10px; border: none; border-radius: 8px; background: none; cursor: pointer;
+  flex-shrink: 0; padding: 8px 10px; border: none; border-radius: 8px; background: none; cursor: pointer;
   opacity: 0.4; filter: grayscale(1); transition: opacity 0.15s, filter 0.15s, background 0.15s;
 }
 .cin:hover { opacity: 0.75; filter: grayscale(0.3); }
@@ -71,10 +73,15 @@ button:focus-visible, a:focus-visible { outline: 2px solid #fff; outline-offset:
 .dc .ed { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); margin-top: 1px; }
 
 .lane-hd {
-  display: grid; gap: var(--lane-gap);
-  margin: 6px 12px 0 var(--gutter); text-align: center;
+  display: grid; gap: var(--lane-gap); align-items: center;
+  height: var(--lane-hd-h); margin: 0 12px 0 var(--gutter); text-align: center;
   font-size: 9px; font-family: var(--mono); color: var(--dim); font-weight: 500; user-select: none;
 }
+.tl-wrap { position: relative; }
+.tl-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+/* hour labels sit over the scrolling lanes so they stay visible when scrolled sideways */
+.tl-hours { position: absolute; left: 0; top: 0; width: var(--gutter); background: var(--bg); z-index: 21; }
+.tl-hours .gla { margin-top: var(--lane-hd-h); }
 .tl { position: relative; }
 .empty { padding: 40px 20px; text-align: center; color: var(--dim); font-size: 13px; }
 .empty .ei { font-size: 28px; margin-bottom: 10px; opacity: 0.5; }

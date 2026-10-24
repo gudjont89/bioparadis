@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
+import { CinemaBar } from "./components/CinemaBar";
 import { DateChips } from "./components/DateChips";
 import { DetailSheet } from "./components/DetailSheet";
 import { Timeline } from "./components/Timeline";
@@ -6,7 +7,6 @@ import { useSelectedCinema } from "./lib/cinema";
 import { loadSchedule } from "./lib/schedule";
 import { reykjavikNow } from "./lib/time";
 import { useTracking } from "./lib/tracking";
-import { CINEMAS } from "./shared/cinemas";
 import type { Day, Schedule } from "./shared/types";
 
 type Load = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; schedule: Schedule };
@@ -66,21 +66,13 @@ export function App() {
     <div class={`app${selected && selectedMovie ? " has-sheet" : ""}`}>
       <header class="hdr">
         <h1 class="sr-only">{cinema.name} showtimes</h1>
-        <nav class="cinemas" aria-label="Choose a cinema">
-          {CINEMAS.map((c) => (
-            <button
-              key={c.id}
-              class={`cin${c.id === cinema.id ? " act" : ""}`}
-              aria-pressed={c.id === cinema.id}
-              onClick={() => {
-                selectCinema(c.id);
-                setSelectedId(null);
-              }}
-            >
-              <img src={`${import.meta.env.BASE_URL}${c.logo}`} alt={c.name} />
-            </button>
-          ))}
-        </nav>
+        <CinemaBar
+          selected={cinema}
+          onSelect={(id) => {
+            selectCinema(id);
+            setSelectedId(null);
+          }}
+        />
       </header>
 
       {load.state === "loading" && <div class="empty">Loading schedule…</div>}

@@ -1,4 +1,3 @@
-import { Fragment } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { groupByLane, timeToMinutes } from "../shared/lanes";
 import type { Day, Movie } from "../shared/types";
@@ -19,6 +18,8 @@ interface Props {
 }
 
 const pad = (n: number) => String(n % 24).padStart(2, "0");
+/** Narrowest a lane gets before the lanes scroll sideways (e.g. Smárabíó's seven halls on a phone). */
+const MIN_LANE_PX = 70;
 
 export function Timeline({ day, halls, movies, tracking, selectedId, now, onSelect }: Props) {
   const tlRef = useRef<HTMLDivElement>(null);
@@ -50,55 +51,61 @@ export function Timeline({ day, halls, movies, tracking, selectedId, now, onSele
   }
 
   const columns = `repeat(${halls.length}, minmax(0, 1fr))`;
+  // Past MIN_LANE_PX per lane the lanes scroll sideways; the hour column stays put.
+  const minWidth = `calc(var(--gutter) + ${halls.length} * ${MIN_LANE_PX}px + ${halls.length - 1} * var(--lane-gap) + 12px)`;
+  const height = `${(end - start) * 60 * PX_PER_MIN + TIMELINE_PAD_Y * 2}px`;
   const showNow = isToday && now.minutes >= rangeStart && now.minutes <= end * 60;
   const hours = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
   return (
-    <>
-    <div class="lane-hd" aria-hidden="true" style={{ gridTemplateColumns: columns }}>
-      {halls.map((h) => (
-        <div key={h}>{h}</div>
-      ))}
-    </div>
-    <div class="tl" ref={tlRef} style={{ height: `${(end - start) * 60 * PX_PER_MIN + TIMELINE_PAD_Y * 2}px` }}>
-      {hours.map((h) => {
-        const y = minuteToY(h * 60, rangeStart);
-        return (
-          <Fragment key={h}>
-            <div class="gl" style={{ top: `${y}px` }} />
-            <div class="gla" style={{ top: `${y}px` }}>
-              {pad(h)}:00
+    <div class="tl-wrap">
+      <div class="tl-scroll">
+        <div style={{ minWidth }}>
+          <div class="lane-hd" aria-hidden="true" style={{ gridTemplateColumns: columns }}>
+            {halls.map((h) => (
+              <div key={h}>{h}</div>
+            ))}
+          </div>
+          <div class="tl" ref={tlRef} style={{ height }}>
+            {hours.map((h) => (
+              <div class="gl" key={h} style={{ top: `${minuteToY(h * 60, rangeStart)}px` }} />
+            ))}
+            <div class="lanes" style={{ gridTemplateColumns: columns }}>
+              {groupByLane(day.screenings, halls.length).map((lane, i) => (
+                <div class="lane" key={i}>
+                  {lane.map((s) => {
+                    const movie = movies[s.movieId];
+                    if (!movie) return null;
+                    return (
+                      <MovieCard
+                        key={s.id}
+                        screening={s}
+                        movie={movie}
+                        status={tracking[s.movieId]}
+                        selected={s.id === selectedId}
+                        rangeStartMinutes={rangeStart}
+                        onSelect={() => onSelect(s.id)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
             </div>
-          </Fragment>
-        );
-      })}
-      <div class="lanes" style={{ gridTemplateColumns: columns }}>
-        {groupByLane(day.screenings, halls.length).map((lane, i) => (
-          <div class="lane" key={i}>
-            {lane.map((s) => {
-              const movie = movies[s.movieId];
-              if (!movie) return null;
-              return (
-                <MovieCard
-                  key={s.id}
-                  screening={s}
-                  movie={movie}
-                  status={tracking[s.movieId]}
-                  selected={s.id === selectedId}
-                  rangeStartMinutes={rangeStart}
-                  onSelect={() => onSelect(s.id)}
-                />
-              );
-            })}
+            {showNow && (
+              <div class="nl" style={{ top: `${minuteToY(now.minutes, rangeStart)}px` }} aria-hidden="true">
+                <div class="nd" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div class="tl-hours" style={{ height: `calc(${height} + var(--lane-hd-h))` }}>
+        {hours.map((h) => (
+          <div class="gla" key={h} style={{ top: `${minuteToY(h * 60, rangeStart)}px` }}>
+            {pad(h)}:00
           </div>
         ))}
       </div>
-      {showNow && (
-        <div class="nl" style={{ top: `${minuteToY(now.minutes, rangeStart)}px` }} aria-hidden="true">
-          <div class="nd" />
-        </div>
-      )}
     </div>
-    </>
   );
 }

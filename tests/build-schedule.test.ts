@@ -26,7 +26,10 @@ describe("buildSchedule", () => {
     const all = schedule.days[0]?.screenings ?? [];
     const screenings = all.filter((s) => s.cinemaId === "bioparadis");
     expect(screenings).toHaveLength(12);
-    expect(all.filter((s) => s.cinemaId === "laugarasbio")).toHaveLength(15);
+    const count = (id: string) => all.filter((s) => s.cinemaId === id).length;
+    expect([count("laugarasbio"), count("sambiokringlunni"), count("sambioegilsholl"), count("smarabio")]).toEqual([
+      15, 20, 20, 31,
+    ]);
 
     expect(screenings.find((s) => s.ticketUrl.endsWith("/19374"))).toMatchObject({
       id: "https://tickets.bioparadis.is/#/book/19374",
@@ -51,6 +54,18 @@ describe("buildSchedule", () => {
       subtitleType: "",
     });
     expect(all.find((s) => s.ticketUrl.endsWith("/19210"))).toMatchObject({ hall: "AXL", lane: 2, subtitleType: "ICE SUB" });
+    expect(all.find((s) => s.ticketUrl.endsWith("perfcode=29439"))).toMatchObject({
+      cinemaId: "smarabio",
+      hall: "S7",
+      lane: 3,
+      audio: "ICE DUB",
+    });
+    expect(all.find((s) => s.ticketUrl.endsWith("/429796"))).toMatchObject({
+      cinemaId: "sambioegilsholl",
+      hall: "Salur 4",
+      lane: 3,
+      audio: "ENG AUDIO",
+    });
 
     expect(schedule.movies["18655"]).toMatchObject({
       title: "Fjord",
@@ -67,8 +82,8 @@ describe("buildSchedule", () => {
       return fetchFromFixtures(url, headers);
     }, "test-key");
     const screenings = schedule.days[0]?.screenings ?? [];
-    expect(screenings).toHaveLength(27);
-    expect(screenings.every((s) => s.subtitleType === "" && s.events.length === 0)).toBe(true);
+    expect(screenings).toHaveLength(98);
+    expect(screenings.every((s) => s.subtitleType === "" && s.audio === "" && s.events.length === 0)).toBe(true);
   });
 
   it("stops at the first failing later day instead of leaving a gap", async () => {

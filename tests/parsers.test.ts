@@ -83,6 +83,13 @@ describe("parseDayPage", () => {
     expect(get(19551)?.subtitleType).toBe(""); // Tony: no subtitle line
   });
 
+  it("reads dubbing from the audio tag", () => {
+    const at = (url: string) => extras.get(url)?.audio;
+    expect(at("https://bokun.laugarasbio.is/#/book/19447")).toBe("ICE DUB"); // Coyote vs. Acme 13:00, ÍSL TAL
+    expect(at("https://www.sambio.is/websales/show/429796")).toBe("ENG AUDIO"); // EN TAL
+    expect(get(19373)?.audio).toBe(""); // Fjord
+  });
+
   it("maps event tags", () => {
     expect(get(18865)?.events).toEqual(["party"]); // Rocky Horror, Partísýning
     expect(get(19405)?.events).toEqual(["party"]); // Camp Miasma, midnaetursyningar

@@ -68,6 +68,11 @@ export async function buildSchedule(fetchText: FetchText, apiKey: string, now = 
 
     const screenings: Screening[] = CINEMAS.flatMap((cinema) => {
       const own = raw.screenings.filter((s) => s.cinema === cinema.kvikId);
+      for (const hall of new Set(own.map((s) => s.hall))) {
+        if (!cinema.halls.includes(hall)) {
+          console.warn(`warn: ${cinema.name} has an unknown hall "${hall}" on ${raw.date}; add it to src/shared/cinemas.ts`);
+        }
+      }
       const laned = assignLanes(own, (s) => movies[s.movieId]?.runtime ?? DEFAULT_RUNTIME, cinema.halls);
       return laned.map((s) => {
         const extra = extras.get(s.ticketUrl);
@@ -81,6 +86,7 @@ export async function buildSchedule(fetchText: FetchText, apiKey: string, now = 
           time: s.time,
           hall: s.hall,
           subtitleType,
+          audio: extra?.audio ?? "",
           ticketUrl: s.ticketUrl,
           events: extra?.events ?? [],
           lane: s.lane,

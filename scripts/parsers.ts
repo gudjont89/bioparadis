@@ -28,6 +28,8 @@ export interface RawDay {
 export interface SessionExtras {
   /** "ICE SUB" | "ENG SUB", or empty when the page doesn't say. */
   subtitleType: string;
+  /** "ICE DUB" | "ENG AUDIO", or empty. */
+  audio: string;
   events: EventType[];
 }
 
@@ -95,12 +97,15 @@ export function parseDayPage(html: string): Map<string, SessionExtras> {
     const link = $(a);
     // Tooltip lines: "Búin kl. ~19:18", "Salur: Salur 1", "Íslenskur texti", <tags>, "Smelltu til að kaupa miða"
     const tip = link.parent().attr("data-tip") ?? "";
+    // The audio tag sits in the link itself: "ÍSL TAL" (Icelandic dub) or "EN TAL".
+    const tegund = link.find(".tegund").text();
     const tags = link
       .find(".st-badge--tag")
       .toArray()
       .map((b) => $(b).text().trim());
     extras.set(link.attr("href") ?? "", {
       subtitleType: /Íslenskur texti/.test(tip) ? "ICE SUB" : /Enskur texti/.test(tip) ? "ENG SUB" : "",
+      audio: /ÍSL TAL/.test(tegund) ? "ICE DUB" : /EN TAL/.test(tegund) ? "ENG AUDIO" : "",
       events: [...new Set(tags.flatMap(eventsFromTag))],
     });
   });

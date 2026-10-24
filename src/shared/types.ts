@@ -53,6 +53,8 @@ export interface Screening {
   hall: string;
   /** "ICE SUB" | "ENG SUB" | "NO SUB", or empty if unknown. */
   subtitleType: string;
+  /** "ICE DUB" (Icelandic-dubbed) | "ENG AUDIO" (English version of a usually dubbed film), or empty. */
+  audio: string;
   ticketUrl: string;
   events: EventType[];
   /** The hall's index in `Cinema.halls`, or a heuristic slot when the hall is unknown. */

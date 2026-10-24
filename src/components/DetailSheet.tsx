@@ -51,6 +51,7 @@ export function DetailSheet({ screening, movie, cinema, allShowings, status, now
             {screening.time} – {endTime(screening.time, movie.runtime)} · {movie.runtime} min
             {screening.hall && ` · ${screening.hall}`}
             {screening.subtitleType && ` · ${screening.subtitleType}`}
+            {screening.audio && ` · ${screening.audio}`}
           </div>
           {screening.events.length > 0 && (
             <div class="det-evts">
