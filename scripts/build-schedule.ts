@@ -1,112 +1,91 @@
 import { colorForMovie } from "../src/shared/colors";
 import { assignLanes } from "../src/shared/lanes";
-import type { EventType, Movie, Schedule, Screening } from "../src/shared/types";
-import {
-  eventsFromLabel,
-  parseEventPages,
-  parseHomepage,
-  parseRuntime,
-  parseTicketUrls,
-  type RawScreening,
-} from "./parsers";
+import type { Day, Movie, Schedule, Screening } from "../src/shared/types";
+import { parseDayPage, parseShowtimes, type SessionExtras } from "./parsers";
 
 const DEFAULT_RUNTIME = 90;
-const BASE_URL = "https://bioparadis.is";
+const SITE_URL = "https://kvikmyndir.is";
+const API_URL = `${SITE_URL}/api/v2`;
+/** kvikmyndir.is cinema id for Bíó Paradís. */
+const BIO_PARADIS = 5;
+/** The site and API publish today plus 21 days. */
+const DAYS_AHEAD = 22;
 
-export type FetchText = (url: string) => Promise<string>;
+export type FetchText = (url: string, headers?: Record<string, string>) => Promise<string>;
 
-/** Runs `fn` over `items`, logging and substituting `fallback` when one fails. */
-async function settle<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  fallback: (item: T) => R,
-  describe: (item: T) => string,
-): Promise<R[]> {
-  return Promise.all(
-    items.map(async (item) => {
-      try {
-        return await fn(item);
-      } catch (err) {
-        console.warn(`warn: ${describe(item)} failed: ${(err as Error).message}`);
-        return fallback(item);
-      }
-    }),
-  );
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/þ/g, "th")
+    .replace(/ð/g, "d")
+    .replace(/æ/g, "ae")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
-export async function buildSchedule(fetchText: FetchText, now = new Date()): Promise<Schedule> {
-  const homepage = await fetchText(`${BASE_URL}/`);
-  const rawDays = parseHomepage(homepage);
-  const eventPages = parseEventPages(homepage).filter((p) => p.eventType !== null);
-
-  // ticket URL -> events, from the authoritative event subpages
-  const eventPairs = await settle(
-    eventPages,
-    async (page) => {
-      const urls = parseTicketUrls(await fetchText(new URL(page.url, BASE_URL).href));
-      return urls.map((u) => [u, page.eventType as EventType] as const);
-    },
-    () => [] as (readonly [string, EventType])[],
-    (page) => `event page ${page.slug}`,
-  );
-  const eventsByTicket = new Map<string, EventType[]>();
-  for (const [url, event] of eventPairs.flat()) {
-    eventsByTicket.set(url, [...(eventsByTicket.get(url) ?? []), event]);
-  }
-
-  // one detail page per movie -> runtime
-  const uniqueMovies = new Map<string, RawScreening>();
-  for (const s of rawDays.flatMap((d) => d.screenings)) {
-    if (!uniqueMovies.has(s.movieId)) uniqueMovies.set(s.movieId, s);
-  }
-  const runtimes = new Map(
-    await settle(
-      [...uniqueMovies.values()],
-      async (s) => {
-        const runtime = parseRuntime(await fetchText(new URL(s.detailUrl, BASE_URL).href));
-        return [s.movieId, runtime ?? DEFAULT_RUNTIME] as const;
-      },
-      (s) => [s.movieId, DEFAULT_RUNTIME] as const,
-      (s) => `movie ${s.movieId}`,
-    ),
-  );
-
+/**
+ * Sessions, halls and runtimes come from the API. The API has no subtitles or
+ * event tags, so those come from the matching day page; if a page fails, that
+ * day's sessions just go without them.
+ */
+export async function buildSchedule(fetchText: FetchText, apiKey: string, now = new Date()): Promise<Schedule> {
   const movies: Record<string, Movie> = {};
-  for (const s of uniqueMovies.values()) {
-    movies[s.movieId] = {
-      id: s.movieId,
-      slug: s.movieSlug,
-      title: s.movieTitle,
-      runtime: runtimes.get(s.movieId) ?? DEFAULT_RUNTIME,
-      posterUrl: s.posterUrl,
-      detailUrl: new URL(s.detailUrl, BASE_URL).href,
-      color: colorForMovie(s.movieId),
-    };
+  const days: Day[] = [];
+
+  for (let offset = 0; offset < DAYS_AHEAD; offset++) {
+    const fetched = await Promise.all([
+      fetchText(`${API_URL}/showtimes?offset=${offset}`, { Authorization: `Bearer ${apiKey}` }),
+      fetchText(`${SITE_URL}/bio/syningatimar/?dagur=${offset}`, { Cookie: "kvik_lang=is" }).then(
+        parseDayPage,
+        (err: Error) => {
+          console.warn(`warn: day page ${offset} failed: ${err.message}`);
+          return new Map<string, SessionExtras>();
+        },
+      ),
+    ]).catch((err: Error) => {
+      // Today is required; a later failure just shortens the horizon rather than
+      // showing a gap that looks like "no screenings".
+      if (offset === 0) throw err;
+      console.warn(`warn: showtimes offset ${offset} failed, stopping: ${err.message}`);
+      return null;
+    });
+    if (!fetched) break;
+    const [json, extras] = fetched;
+
+    const raw = parseShowtimes(json, BIO_PARADIS);
+    for (const m of raw.movies) {
+      movies[m.id] ??= {
+        id: m.id,
+        slug: slugify(m.title),
+        title: m.title,
+        runtime: m.runtime ?? DEFAULT_RUNTIME,
+        posterUrl: m.posterUrl,
+        detailUrl: `${SITE_URL}/mynd/?id=${m.id}`,
+        color: colorForMovie(m.id),
+      };
+    }
+
+    const laned = assignLanes(raw.screenings, (s) => movies[s.movieId]?.runtime ?? DEFAULT_RUNTIME);
+    const screenings: Screening[] = laned.map((s) => ({
+      id: s.ticketUrl || `${s.movieId}_${raw.date}_${s.time}`,
+      movieId: s.movieId,
+      date: raw.date,
+      time: s.time,
+      hall: s.hall,
+      subtitleType: extras.get(s.ticketUrl)?.subtitleType ?? "",
+      ticketUrl: s.ticketUrl,
+      events: extras.get(s.ticketUrl)?.events ?? [],
+      lane: s.lane,
+    }));
+    days.push({ date: raw.date, screenings });
   }
 
-  const days = rawDays.map((day) => {
-    const withEvents = day.screenings.map((raw) => {
-      const events = [
-        ...new Set([...eventsFromLabel(raw.eventLabel), ...(eventsByTicket.get(raw.ticketUrl) ?? [])]),
-      ];
-      return { raw, time: raw.time, events };
-    });
-    const laned = assignLanes(withEvents, (s) => movies[s.raw.movieId]?.runtime ?? DEFAULT_RUNTIME);
-    const screenings: Screening[] = laned.map(({ raw, time, events, lane }) => ({
-      id: raw.ticketUrl || `${raw.movieId}_${day.date}_${time}`,
-      movieId: raw.movieId,
-      date: day.date,
-      time,
-      subtitleType: raw.subtitleType,
-      ticketUrl: raw.ticketUrl,
-      events,
-      lane,
-    }));
-    return { date: day.date, screenings };
-  });
-
-  if (days.every((d) => d.screenings.length === 0)) {
-    throw new Error("Parsed days but found no screenings; refusing to publish an empty schedule");
+  // Far-off days are often empty only because times aren't published yet.
+  while (days.length > 0 && days.at(-1)?.screenings.length === 0) days.pop();
+  if (days.length === 0) {
+    throw new Error("Found no screenings; refusing to publish an empty schedule");
   }
 
   return { generatedAt: now.toISOString(), days, movies };

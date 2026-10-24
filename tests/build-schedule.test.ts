@@ -2,44 +2,80 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildSchedule, type FetchText } from "../scripts/build-schedule";
 
-const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}.html`, import.meta.url), "utf8");
+const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
+const emptyDay = (offset: number) => JSON.stringify({ date: `2026-11-${String(offset).padStart(2, "0")}`, data: [] });
 
-const fetchFromFixtures: FetchText = async (url) => {
-  if (url === "https://bioparadis.is/") return fixture("home");
-  if (url.includes("/vidburdir/")) return fixture("event");
-  if (url.includes("/mynd/")) return fixture("movie");
+/** Serves the fixtures for today and empty responses for every later day. */
+const fetchFromFixtures: FetchText = async (url, headers) => {
+  if (url.includes("/api/v2/showtimes")) {
+    if (headers?.Authorization !== "Bearer test-key") throw new Error("401 Unauthorized");
+    const offset = Number(new URL(url).searchParams.get("offset"));
+    return offset === 0 ? fixture("showtimes.json") : emptyDay(offset);
+  }
+  if (url.includes("/bio/syningatimar/")) return fixture("syningatimar.html");
   throw new Error(`unexpected url ${url}`);
 };
 
 describe("buildSchedule", () => {
-  it("assembles days, movies, runtimes, events and lanes", async () => {
-    const schedule = await buildSchedule(fetchFromFixtures, new Date("2026-10-20T12:00:00Z"));
+  it("assembles days, movies, halls, subtitles, events and lanes", async () => {
+    const schedule = await buildSchedule(fetchFromFixtures, "test-key", new Date("2026-10-24T12:00:00Z"));
 
-    expect(schedule.generatedAt).toBe("2026-10-20T12:00:00.000Z");
-    expect(schedule.days).toHaveLength(6);
-    expect(schedule.days.reduce((n, d) => n + d.screenings.length, 0)).toBe(35);
-    expect(Object.values(schedule.movies).every((m) => m.runtime === 106)).toBe(true);
+    expect(schedule.generatedAt).toBe("2026-10-24T12:00:00.000Z");
+    expect(schedule.days.map((d) => d.date)).toEqual(["2026-10-24"]); // trailing empty days dropped
+    const screenings = schedule.days[0]?.screenings ?? [];
+    expect(screenings).toHaveLength(12);
 
-    const screenings = schedule.days.flatMap((d) => d.screenings);
-    expect(new Set(screenings.map((s) => s.id)).size).toBe(screenings.length);
-    expect(screenings.every((s) => s.lane >= 0 && s.lane <= 2)).toBe(true);
-    expect(screenings.some((s) => s.events.includes("party"))).toBe(true);
-  });
-
-  it("falls back to the default runtime when a detail page fails", async () => {
-    const schedule = await buildSchedule(async (url) => {
-      if (url.includes("/mynd/")) throw new Error("boom");
-      return fetchFromFixtures(url);
+    expect(screenings.find((s) => s.ticketUrl.endsWith("/19374"))).toMatchObject({
+      id: "https://tickets.bioparadis.is/#/book/19374",
+      movieId: "18655",
+      date: "2026-10-24",
+      time: "18:45",
+      hall: "Salur 2",
+      subtitleType: "ENG SUB",
+      events: [],
+      lane: 1,
     });
-    expect(Object.values(schedule.movies).every((m) => m.runtime === 90)).toBe(true);
+    expect(screenings.find((s) => s.ticketUrl.endsWith("/18865"))?.events).toEqual(["party"]);
+    expect(screenings.every((s) => s.lane === Number(s.hall.slice(-1)) - 1)).toBe(true);
+
+    expect(schedule.movies["18655"]).toMatchObject({
+      title: "Fjord",
+      slug: "fjord",
+      runtime: 146,
+      detailUrl: "https://kvikmyndir.is/mynd/?id=18655",
+    });
+    expect(schedule.movies["18693"]?.slug).toBe("um-timann-og-vatnid");
   });
 
-  it("rejects a blocked homepage instead of producing an empty schedule", async () => {
-    await expect(buildSchedule(async () => "<html>Sorry, you have been blocked</html>")).rejects.toThrow();
+  it("keeps sessions without subtitles or events when a day page fails", async () => {
+    const schedule = await buildSchedule(async (url, headers) => {
+      if (url.includes("/bio/syningatimar/")) throw new Error("boom");
+      return fetchFromFixtures(url, headers);
+    }, "test-key");
+    const screenings = schedule.days[0]?.screenings ?? [];
+    expect(screenings).toHaveLength(12);
+    expect(screenings.every((s) => s.subtitleType === "" && s.events.length === 0)).toBe(true);
   });
 
-  it("rejects when days exist but none has screenings", async () => {
-    const html = `<a class="getFilms" data-div="shows_2026-10-20"></a><div class="shows" id="shows_2026-10-20"></div>`;
-    await expect(buildSchedule(async () => html)).rejects.toThrow(/empty schedule/);
+  it("stops at the first failing later day instead of leaving a gap", async () => {
+    const urls: string[] = [];
+    const schedule = await buildSchedule(async (url, headers) => {
+      urls.push(url);
+      if (url.endsWith("showtimes?offset=1")) throw new Error("503");
+      if (url.endsWith("showtimes?offset=2")) return fixture("showtimes.json");
+      return fetchFromFixtures(url, headers);
+    }, "test-key");
+    expect(schedule.days).toHaveLength(1);
+    expect(urls.some((u) => u.endsWith("offset=2"))).toBe(false);
+  });
+
+  it("rejects when today's showtimes fail (e.g. a bad key)", async () => {
+    await expect(buildSchedule(fetchFromFixtures, "wrong-key")).rejects.toThrow(/401/);
+  });
+
+  it("rejects an empty schedule", async () => {
+    await expect(
+      buildSchedule(async (url) => (url.includes("/api/") ? emptyDay(1) : ""), "test-key"),
+    ).rejects.toThrow(/empty schedule/);
   });
 });

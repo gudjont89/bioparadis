@@ -11,7 +11,7 @@ const movie: Movie = {
 };
 const screening: Screening = {
   id: "https://tickets.bioparadis.is/#/book/1", movieId: "1", date: "2026-10-23", time: "23:00",
-  subtitleType: "", ticketUrl: "https://tickets.bioparadis.is/#/book/1", events: [], lane: 0,
+  hall: "Salur 1", subtitleType: "", ticketUrl: "https://tickets.bioparadis.is/#/book/1", events: [], lane: 0,
 };
 
 describe("time", () => {

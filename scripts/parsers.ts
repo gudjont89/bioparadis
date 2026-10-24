@@ -1,158 +1,123 @@
 import * as cheerio from "cheerio";
 import type { EventType } from "../src/shared/types";
 
+export interface RawMovie {
+  id: string;
+  title: string;
+  /** Minutes; the API sends null for some films (e.g. new Icelandic releases). */
+  runtime: number | null;
+  posterUrl: string;
+}
+
 export interface RawScreening {
   movieId: string;
-  movieSlug: string;
-  movieTitle: string;
-  posterUrl: string;
-  detailUrl: string;
   time: string;
-  subtitleType: string;
+  hall: string;
   ticketUrl: string;
-  /** Overlay label on the poster, e.g. "PARTÍSÝNING". */
-  eventLabel: string;
 }
 
 export interface RawDay {
   date: string;
+  movies: RawMovie[];
   screenings: RawScreening[];
 }
 
-export interface EventPageInfo {
-  slug: string;
-  url: string;
-  eventType: EventType | null;
+/** Per-session details the API leaves out, read from the kvikmyndir.is day page. */
+export interface SessionExtras {
+  subtitleType: string;
+  events: EventType[];
+}
+
+interface ApiMovie {
+  id: number;
+  title: string;
+  durationMinutes: number | null;
+  poster: string | null;
+  showtimes: {
+    cinema: number;
+    schedule: { time: string; hall: string; purchase_url: string }[];
+  }[];
 }
 
 /**
- * Parses every dated day section on the homepage. The "DAGSKRÁ" tab
- * (`shows_ALLT`) is not a date and is skipped. Throws if no day sections are
- * found, so a changed layout fails loudly instead of publishing an empty
- * schedule.
+ * Parses one `/api/v2/showtimes` response, keeping only `cinemaId`'s sessions.
+ * The API repeats some sessions verbatim, so they are de-duplicated by ticket
+ * URL. Throws on anything that isn't a showtimes response (e.g. an error body).
  */
-export function parseHomepage(html: string): RawDay[] {
-  const $ = cheerio.load(html);
-  const days: RawDay[] = [];
+export function parseShowtimes(json: string, cinemaId: number): RawDay {
+  const body = JSON.parse(json) as { date?: string; data?: ApiMovie[] };
+  if (!body.date || !Array.isArray(body.data)) throw new Error(`Unexpected showtimes response: ${json.slice(0, 200)}`);
+
+  const movies: RawMovie[] = [];
+  const screenings: RawScreening[] = [];
   const seen = new Set<string>();
-
-  $("a.getFilms[data-div]").each((_, tab) => {
-    const divId = $(tab).attr("data-div") ?? "";
-    const date = /^shows_(\d{4}-\d{2}-\d{2})$/.exec(divId)?.[1];
-    if (!date || seen.has(date)) return;
-    seen.add(date);
-
-    const section = $(`[id="${divId}"]`).first();
-    const screenings = section
-      .find('li:has(a[href*="/mynd/"])')
-      .toArray()
-      .flatMap((li) => parseMovieBlock($, li));
-    days.push({ date, screenings });
-  });
-
-  if (days.length === 0) throw new Error("No date tabs found on homepage");
-  return days;
-}
-
-function parseMovieBlock($: cheerio.CheerioAPI, el: Parameters<typeof $>[0]): RawScreening[] {
-  const block = $(el);
-  const detailUrl = block.find('a[href*="/mynd/"]').first().attr("href");
-  const idSlug = detailUrl && /\/mynd\/(\d+)_([^/]+)\/?/.exec(detailUrl);
-  if (!detailUrl || !idSlug) return [];
-  const [, movieId = "", movieSlug = ""] = idSlug;
-
-  const movieTitle = block.find("h4").first().text().trim();
-  if (!movieTitle) return [];
-
-  const posterUrl =
-    block.find('img[src*="mycloudcinema"]').first().attr("src") ??
-    block.find("img").first().attr("src") ??
-    "";
-  const eventLabel = block.find("span.event").first().text().trim();
-
-  return block
-    .find("ul.timar > li")
-    .toArray()
-    .flatMap((item) => {
-      const li = $(item);
-      const time = /(\d{1,2}:\d{2})/.exec(li.find("div.top-showtime").first().contents().first().text())?.[1];
-      if (!time) return [];
-      const href = li.find("div.bottom-buy-ticket a").first().attr("href") ?? "";
-      return [
-        {
-          movieId,
-          movieSlug,
-          movieTitle,
-          posterUrl,
-          detailUrl,
-          time: time.padStart(5, "0"),
-          subtitleType: li.find("span.sub").first().text().trim(),
-          ticketUrl: href.startsWith("javascript:") ? "" : href,
-          eventLabel,
-        },
-      ];
+  for (const m of body.data) {
+    const sessions = m.showtimes.filter((c) => c.cinema === cinemaId).flatMap((c) => c.schedule);
+    if (sessions.length === 0) continue;
+    const movieId = String(m.id);
+    movies.push({
+      id: movieId,
+      title: m.title.replace(/­/g, "").trim(),
+      runtime: m.durationMinutes || null,
+      // Films without a poster come back as null or as the bare directory, ".../poster/".
+      posterUrl: !m.poster || m.poster.endsWith("/") ? "" : m.poster,
     });
+    for (const s of sessions) {
+      const key = s.purchase_url || `${movieId}_${s.time}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      screenings.push({
+        movieId,
+        // Some cinemas write "17.50".
+        time: s.time.trim().replace(".", ":").padStart(5, "0"),
+        hall: s.hall.trim(),
+        ticketUrl: s.purchase_url,
+      });
+    }
+  }
+  return { date: body.date, movies, screenings };
 }
 
-const SLUG_TO_EVENT: Record<string, EventType> = {
-  partisyningar: "party",
-  "svartir-sunnudagar": "blackSunday",
-  midvikudagsbio: "wednesday",
-  biotekid: "biotekid",
-};
+/**
+ * Reads subtitles and event tags for every session on a `/bio/syningatimar/`
+ * page, keyed by ticket URL (the same URLs the API returns).
+ */
+export function parseDayPage(html: string): Map<string, SessionExtras> {
+  const $ = cheerio.load(html);
+  const extras = new Map<string, SessionExtras>();
+  $("a.st-showtime-link[href]").each((_, a) => {
+    const link = $(a);
+    // Tooltip lines: "Búin kl. ~19:18", "Salur: Salur 1", "Íslenskur texti", <tags>, "Smelltu til að kaupa miða"
+    const tip = link.parent().attr("data-tip") ?? "";
+    const tags = link
+      .find(".st-badge--tag")
+      .toArray()
+      .map((b) => $(b).text().trim());
+    extras.set(link.attr("href") ?? "", {
+      subtitleType: /Íslenskur texti/.test(tip) ? "ICE SUB" : /Enskur texti/.test(tip) ? "ENG SUB" : "NO SUB",
+      events: [...new Set(tags.flatMap(eventsFromTag))],
+    });
+  });
+  return extras;
+}
 
-const KEYWORD_TO_EVENT: [string, EventType][] = [
-  ["thyskir", "german"],
-  ["german", "german"],
-  ["fronsk", "french"],
-  ["french", "french"],
+const TAG_TO_EVENT: [RegExp, EventType][] = [
+  [/parti|party|midnaetur/, "party"],
+  [/svartir sunnudagar/, "blackSunday"],
+  [/midvikudags/, "wednesday"],
+  [/biotek/, "biotekid"],
+  [/thysk|german/, "german"],
+  [/fransk|fronsk|french/, "french"],
 ];
 
-function eventTypeForSlug(slug: string): EventType | null {
-  const known = SLUG_TO_EVENT[slug];
-  if (known) return known;
-  const lower = slug.toLowerCase();
-  return KEYWORD_TO_EVENT.find(([keyword]) => lower.includes(keyword))?.[1] ?? null;
-}
-
-/** Event/festival pages linked from the nav ("Viðburðir"), de-duplicated by slug. */
-export function parseEventPages(html: string): EventPageInfo[] {
-  const $ = cheerio.load(html);
-  const bySlug = new Map<string, EventPageInfo>();
-  $('a[href*="/vidburdir/"]').each((_, a) => {
-    const url = $(a).attr("href") ?? "";
-    const slug = /\/vidburdir\/([^/]+)\/?/.exec(url)?.[1];
-    if (slug && !bySlug.has(slug)) {
-      bySlug.set(slug, { slug, url, eventType: eventTypeForSlug(slug) });
-    }
-  });
-  return [...bySlug.values()];
-}
-
-export function parseTicketUrls(html: string): string[] {
-  const $ = cheerio.load(html);
-  const urls = $('a[href*="tickets.bioparadis.is/#/book/"]')
-    .toArray()
-    .map((a) => $(a).attr("href") ?? "");
-  return [...new Set(urls)];
-}
-
-export function parseRuntime(html: string): number | null {
-  const $ = cheerio.load(html);
-  const match = /Lengd:\s*(\d+)\s*mín/.exec($("body").text());
-  return match?.[1] ? Number(match[1]) : null;
-}
-
-/** Maps the poster overlay label to events. Kept loose: labels are free text. */
-export function eventsFromLabel(label: string): EventType[] {
-  const lower = label.toLowerCase();
-  if (!lower) return [];
-  if (lower.includes("partí") || lower.includes("party")) return ["party"];
-  if (lower.includes("svartir") || lower.includes("sunnudag")) return ["blackSunday"];
-  if (lower.includes("miðvikudag")) return ["wednesday"];
-  if (lower.includes("bíótekið") || lower.includes("biotekid")) return ["biotekid"];
-  if (lower.includes("þýskir") || lower.includes("german")) return ["german"];
-  if (/fronskir|french|frönsk|franska/.test(lower)) return ["french"];
-  if (lower.includes("kvöldstund")) return ["party"]; // "Kvöldstund með..." events
-  return [];
+/** Maps a free-text event tag to events. Tags are inconsistently accented ("Tonlist", "Partísýning"), so fold first. */
+export function eventsFromTag(tag: string): EventType[] {
+  const folded = tag
+    .toLowerCase()
+    .replace(/þ/g, "th")
+    .replace(/ð/g, "d")
+    .replace(/æ/g, "ae")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  return TAG_TO_EVENT.filter(([re]) => re.test(folded)).map(([, event]) => event);
 }

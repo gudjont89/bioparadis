@@ -43,9 +43,12 @@ export function DetailSheet({ screening, movie, allShowings, status, now, onTrac
       <div class="det-top">
         <img class="det-poster" src={movie.posterUrl} alt="" />
         <div class="det-body">
-          <div class="det-title">{movie.title}</div>
+          <a class="det-title" href={movie.detailUrl} target="_blank" rel="noopener">
+            {movie.title}
+          </a>
           <div class="det-meta">
             {screening.time} – {endTime(screening.time, movie.runtime)} · {movie.runtime} min
+            {screening.hall && ` · ${screening.hall}`}
             {screening.subtitleType && ` · ${screening.subtitleType}`}
           </div>
           {screening.events.length > 0 && (

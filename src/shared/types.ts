@@ -28,10 +28,13 @@ export interface Screening {
   date: string;
   /** `HH:MM`, Atlantic/Reykjavik. */
   time: string;
+  /** e.g. "Salur 1"; empty if unknown. */
+  hall: string;
+  /** "ICE SUB" | "ENG SUB" | "NO SUB", or empty if unknown. */
   subtitleType: string;
   ticketUrl: string;
   events: EventType[];
-  /** 0..2, assigned heuristically; the cinema doesn't publish halls. */
+  /** 0..2: the hall's index in `HALLS`, or a heuristic slot when the hall is unknown. */
   lane: number;
 }
 

@@ -1,6 +1,6 @@
 import { Fragment } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { groupByLane, timeToMinutes } from "../shared/lanes";
+import { groupByLane, HALLS, timeToMinutes } from "../shared/lanes";
 import type { Day, Movie } from "../shared/types";
 import { hourRange, minuteToY, PX_PER_MIN, TIMELINE_PAD_Y } from "../lib/layout";
 import type { ReykjavikNow } from "../lib/time";
@@ -51,6 +51,12 @@ export function Timeline({ day, movies, tracking, selectedId, now, onSelect }: P
   const hours = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
   return (
+    <>
+    <div class="lane-hd" aria-hidden="true">
+      {HALLS.map((h) => (
+        <div key={h}>{h}</div>
+      ))}
+    </div>
     <div class="tl" ref={tlRef} style={{ height: `${(end - start) * 60 * PX_PER_MIN + TIMELINE_PAD_Y * 2}px` }}>
       {hours.map((h) => {
         const y = minuteToY(h * 60, rangeStart);
@@ -90,5 +96,6 @@ export function Timeline({ day, movies, tracking, selectedId, now, onSelect }: P
         </div>
       )}
     </div>
+    </>
   );
 }

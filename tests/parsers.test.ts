@@ -1,98 +1,99 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  eventsFromLabel,
-  parseEventPages,
-  parseHomepage,
-  parseRuntime,
-  parseTicketUrls,
-} from "../scripts/parsers";
+import { eventsFromTag, parseDayPage, parseShowtimes } from "../scripts/parsers";
 
-const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}.html`, import.meta.url), "utf8");
-const home = fixture("home");
+const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
-describe("parseHomepage", () => {
-  const days = parseHomepage(home);
+describe("parseShowtimes", () => {
+  const day = parseShowtimes(fixture("showtimes.json"), 5);
 
-  it("returns the six dated days and skips the DAGSKRÁ tab", () => {
-    expect(days.map((d) => d.date)).toEqual([
-      "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25",
-    ]);
+  it("reads the date and keeps only the requested cinema", () => {
+    expect(day.date).toBe("2026-10-24");
+    expect(day.screenings.every((s) => s.ticketUrl.startsWith("https://tickets.bioparadis.is/"))).toBe(true);
   });
 
-  it("finds every showtime in each day section", () => {
-    expect(days.map((d) => d.screenings.length)).toEqual([8, 7, 7, 5, 7, 1]);
+  it("drops sessions the API repeats verbatim", () => {
+    // The Invite 21:30 appears twice in the response.
+    expect(day.screenings).toHaveLength(12);
+    expect(new Set(day.screenings.map((s) => s.ticketUrl)).size).toBe(12);
   });
 
-  it("extracts movie, time, subtitle and ticket fields", () => {
-    expect(days[0]?.screenings[0]).toMatchObject({
-      movieId: "911",
-      movieSlug: "um-t-mann-og-vatni-time-and-water-",
-      movieTitle: "Um tímann og vatnið (Time and Water)",
-      time: "16:40",
-      subtitleType: "ENG SUB",
-      ticketUrl: "https://tickets.bioparadis.is/#/book/19347",
+  it("extracts movie and session fields", () => {
+    expect(day.movies.find((m) => m.id === "18655")).toEqual({
+      id: "18655",
+      title: "Fjord",
+      runtime: 146,
+      posterUrl: "https://kvikmyndir.is/images/poster/18655_500.jpg",
     });
-    expect(days[0]?.screenings[0]?.posterUrl).toContain("mycloudcinema.com/media/posters/911/");
+    expect(day.screenings.find((s) => s.ticketUrl.endsWith("/19373"))).toEqual({
+      movieId: "18655",
+      time: "16:30",
+      hall: "Salur 1",
+      ticketUrl: "https://tickets.bioparadis.is/#/book/19373",
+    });
   });
 
-  it("reads poster overlay labels", () => {
-    const labels = new Set(days.flatMap((d) => d.screenings.map((s) => s.eventLabel)));
-    expect(labels).toContain("PARTÍSÝNING");
-    expect(labels).toContain("SVARTIR SUNNUDAGAR");
+  it("trims titles", () => {
+    expect(day.movies.find((m) => m.id === "18486")?.title).toBe("Fuglar (og menn)");
   });
 
-  it("keeps showtimes that have no ticket link (empty ticketUrl)", () => {
-    const all = days.flatMap((d) => d.screenings);
-    expect(all.filter((s) => s.ticketUrl === "").length).toBeGreaterThan(0);
+  it("normalises dotted times, missing runtimes and empty posters", () => {
+    const json = JSON.stringify({
+      date: "2026-10-30",
+      data: [
+        {
+          id: 18883,
+          title: "Ic­eg­u­ys",
+          durationMinutes: null,
+          poster: null, // as the API sends it for IceGuys
+          showtimes: [{ cinema: 5, schedule: [{ time: "9.50", hall: "Salur 1", purchase_url: "u" }] }],
+        },
+      ],
+    });
+    const { movies, screenings } = parseShowtimes(json, 5);
+    expect(movies[0]).toMatchObject({ title: "Iceguys", runtime: null, posterUrl: "" });
+    expect(screenings[0]?.time).toBe("09:50");
   });
 
-  it("throws when the page has no date tabs (e.g. a Cloudflare block page)", () => {
-    expect(() => parseHomepage("<html><body>Sorry, you have been blocked</body></html>")).toThrow(/No date tabs/);
-  });
-});
-
-describe("parseEventPages", () => {
-  const pages = parseEventPages(home);
-
-  it("de-duplicates by slug", () => {
-    const slugs = pages.map((p) => p.slug);
-    expect(new Set(slugs).size).toBe(slugs.length);
-  });
-
-  it("maps known series to event types", () => {
-    const type = (slug: string) => pages.find((p) => p.slug === slug)?.eventType;
-    expect(type("partisyningar")).toBe("party");
-    expect(type("svartir-sunnudagar")).toBe("blackSunday");
-    expect(type("midvikudagsbio")).toBe("wednesday");
-    expect(type("biotekid")).toBe("biotekid");
-  });
-
-  it("leaves unknown festivals unmapped", () => {
-    expect(pages.find((p) => p.slug === "japanskt-horror-fest")?.eventType).toBeNull();
+  it("throws on an error body", () => {
+    expect(() => parseShowtimes('{"error":{"status":401,"code":"missing_key"}}', 5)).toThrow(/Unexpected/);
   });
 });
 
-describe("other parsers", () => {
-  it("parseTicketUrls returns unique ticket links", () => {
-    const urls = parseTicketUrls(fixture("event"));
-    expect(urls.length).toBeGreaterThan(0);
-    expect(new Set(urls).size).toBe(urls.length);
-    expect(urls.every((u) => u.startsWith("https://tickets.bioparadis.is/#/book/"))).toBe(true);
+describe("parseDayPage", () => {
+  const extras = parseDayPage(fixture("syningatimar.html"));
+  const get = (id: number) => extras.get(`https://tickets.bioparadis.is/#/book/${id}`);
+
+  it("reads subtitles from the session tooltip", () => {
+    expect(get(19373)?.subtitleType).toBe("ICE SUB"); // Fjord 16:30
+    expect(get(19374)?.subtitleType).toBe("ENG SUB"); // Fjord 18:45
+    expect(get(19551)?.subtitleType).toBe("NO SUB"); // Tony
   });
 
-  it("parseRuntime reads the Lengd field", () => {
-    expect(parseRuntime(fixture("movie"))).toBe(106);
-    expect(parseRuntime("<body>no runtime here</body>")).toBeNull();
+  it("maps event tags", () => {
+    expect(get(18865)?.events).toEqual(["party"]); // Rocky Horror, Partísýning
+    expect(get(19405)?.events).toEqual(["party"]); // Camp Miasma, midnaetursyningar
+    expect(get(19373)?.events).toEqual([]);
   });
 
-  it("eventsFromLabel maps poster labels", () => {
-    expect(eventsFromLabel("PARTÍSÝNING")).toEqual(["party"]);
-    expect(eventsFromLabel("SVARTIR SUNNUDAGAR")).toEqual(["blackSunday"]);
-    expect(eventsFromLabel("Miðvikudagsbíó")).toEqual(["wednesday"]);
-    expect(eventsFromLabel("BÍÓTEKIÐ")).toEqual(["biotekid"]);
-    expect(eventsFromLabel("Kvöldstund með...")).toEqual(["party"]);
-    expect(eventsFromLabel("Síðustu sýningar!")).toEqual([]);
-    expect(eventsFromLabel("")).toEqual([]);
+  it("covers every Bíó Paradís session the API returns for the same day", () => {
+    const api = parseShowtimes(fixture("showtimes.json"), 5);
+    expect(api.screenings.every((s) => extras.has(s.ticketUrl))).toBe(true);
+  });
+});
+
+describe("eventsFromTag", () => {
+  it.each([
+    ["Partísýning", ["party"]],
+    ["midnaetursyningar", ["party"]],
+    ["Svartir sunnudagar", ["blackSunday"]],
+    ["Midvikudagsbio", ["wednesday"]],
+    ["Bíótekið", ["biotekid"]],
+    ["Þýskir kvikmyndadagar", ["german"]],
+    ["Franskir kvikmyndadagar", ["french"]],
+    ["Tonlist", []],
+    ["italskir kvikmyndadagar", []],
+  ])("%s", (tag, events) => {
+    expect(eventsFromTag(tag)).toEqual(events);
   });
 });

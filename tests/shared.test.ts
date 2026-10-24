@@ -46,6 +46,18 @@ describe("assignLanes", () => {
     expect(out[3]?.lane).toBe(1); // lane 1 ends first (18:00 + 115)
   });
 
+  it("uses the hall's lane when the hall is known", () => {
+    const out = assignLanes(
+      [
+        { time: "18:00", runtime: 100, hall: "Salur 3" },
+        { time: "18:30", runtime: 100, hall: "Salur 1" },
+        { time: "19:00", runtime: 100 }, // unknown hall: first free lane
+      ],
+      runtimeOf,
+    );
+    expect(out.map((s) => s.lane)).toEqual([2, 0, 1]);
+  });
+
   it("does not mutate its input", () => {
     const input = [{ time: "20:00", runtime: 90 }, { time: "14:00", runtime: 90 }];
     assignLanes(input, runtimeOf);

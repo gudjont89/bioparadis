@@ -32,6 +32,8 @@ jobs:
       # Fails (non-zero exit) on a blocked/changed site or an empty schedule, which
       # stops the workflow before deploy so the last good schedule stays live.
       - run: npm run scrape
+        env:
+          KVIKMYNDIR_API_KEY: ${{ secrets.KVIKMYNDIR_API_KEY }}
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

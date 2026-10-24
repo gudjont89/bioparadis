@@ -119,7 +119,12 @@ export function App() {
               <span>✓ seen</span>
               <span>✕ skip</span>
             </div>
-            <div>schedule updated {updatedLabel(load.schedule.generatedAt)}</div>
+            <div>
+              schedule updated {updatedLabel(load.schedule.generatedAt)} · data from{" "}
+              <a href="https://kvikmyndir.is" target="_blank" rel="noopener">
+                Kvikmyndir.is
+              </a>
+            </div>
           </footer>
         </>
       )}

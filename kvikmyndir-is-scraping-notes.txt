@@ -1,0 +1,270 @@
+KVIKMYNDIR.IS - STRUCTURE NOTES FOR A SCRAPER
+Observed Saturday 24 October 2026, from /bio/syningatimar/ (days 0-7) and one
+film page (/mynd/?id=18728).
+
+IMPORTANT LIMITS OF THESE NOTES
+- I saw the pages through a markdown-converted view, not the raw HTML. I do not
+  know CSS classes, element ids, data attributes or whether the page embeds
+  JSON. Everything below is about visible content and URLs. Check the raw HTML
+  before writing selectors.
+- Not checked: robots.txt, terms of service (/terms-of-service), and the
+  site's own API page (/forritaskil/, linked in the footer as "API"). Read the
+  API page first: it may give you structured data without scraping.
+
+
+1. URL PATTERNS
+---------------
+Showtimes by day   /bio/syningatimar/?dagur=N        N = 0..21 (0 = today)
+                   No parameter = today. The day navigation has 22 links.
+Language switch    ?kvik_setlang=is | en | pl        (default seen: Icelandic;
+                   effect on labels not tested, so pin to "is")
+Film page          /mynd/?id=<integer>
+Person page        /nafn/?id=<integer>                (cast and crew links)
+Cinema page        /bio/bioparadis/  /bio/laugarasbio/  /bio/smarabio/
+                   /bio/sambioin/    (one shared page for ALL Sambio sites)
+Trailer            /video_play/?yt=<YouTube video id>
+Poster             /images/poster/<name>.jpg   (names are inconsistent:
+                   <id>_500.jpg, tmdb_poster_<id>.jpg, <slug>-<timestamp>.jpg;
+                   a few films have an empty poster path)
+Not examined      /bio/vaentanlegt/ (upcoming), /s/ (search),
+                   /kvikmyndalistar/ (lists), /leiga/, /streymi/
+
+
+2. DAY PAGE: HOW TO KNOW WHICH DAY YOU GOT
+------------------------------------------
+- A line reads "Syningatimar fyrir DD.MM.YYYY" (Icelandic spelling with accents:
+  Sýningatímar). Variants seen:
+    dagur=0   "Sýningatímar fyrir: 24.10.2026 (í dag)."   (has a colon, a dot)
+    dagur=1   "Sýningatímar fyrir 25.10.2026 (á morgun)"
+    dagur=2/3 "... (eftir 2 daga)" / "(eftir 3 daga)"
+    dagur>=4  "Sýningatímar fyrir 28.10.2026"             (no suffix)
+  Parse the date with a regex such as \d{2}\.\d{2}\.\d{4}; do not rely on the
+  suffix or on the colon.
+- "Uppfært kl. HH:MM" gives a per-page update time. It differed by day, from
+  06:57 to 08:45 across the eight pages I loaded. Store it with each scrape.
+- The page's canonical link is always /bio/syningatimar/ whatever dagur is, so
+  it cannot be used to check the day.
+- QUIRK: on my first attempts, several ?dagur=N requests returned today's page
+  (date line said 24.10.2026). The same URLs worked when retried later.
+  Always compare the parsed date with the date you asked for and retry on a
+  mismatch.
+- Navigation labels are Icelandic: "Í dag 24.Okt", "Sun 25.Okt", ...,
+  "Sun 01.Nóv".
+- Days further out are incomplete: only a few films had times for 29-30 Oct. A
+  missing film on a far day means "not yet published", not "not showing".
+
+
+3. FILM BLOCK (one per film per day)
+------------------------------------
+Elements, in order:
+  1. Trailer link  /video_play/?yt=<id>
+  2. Poster image linking to /mynd/?id=<id>      <- film primary key
+  3. Age rating: icon frisk/<N>.png where N = 6, 9, 12, 14, 16, or "l" (all
+     ages), plus text "Bönnuð innan N ára" or "Öllum leyfð". Some films have
+     no rating at all.
+  4. "Langar að sjá" (a UI button; ignore)
+  5. IMDb link (…/title/tt#######/) with rating text such as 7.6. The link or
+     rating can be missing.
+  6. An optional bare percentage (e.g. 96%). It has no visible label, so I do
+     not know its source.
+  7. Title link text = "<Title> <YYYY>": the year is glued on to the title,
+     e.g. "Clayface 2026". Strip a trailing 4-digit year.
+     An optional word "Frumsýning" (premiere / new release) can follow it,
+     including for re-releases (e.g. "Audition 2000 Frumsýning").
+  8. Genres and runtime:  "Hrollvekja, Spennutryllir · 1 klst 48 mín"
+     Genres are comma-separated; runtime is "H klst M mín" or just "M mín".
+     Runtime can be missing (film id 18883 shows genres only).
+  9. One section per cinema: a heading "### <Cinema name>" then a list of
+     sessions.
+ 10. An optional "Vissir þú?" trivia paragraph (ignore).
+Ordering: films are sorted by number of screenings (the page footer says so).
+The order of cinema sections inside a film is NOT fixed, so do not rely on it.
+
+
+4. SESSION LINE FORMAT
+----------------------
+Markdown form:  - [<time> <tags/hall text>](<booking url>)
+
+Examples seen verbatim:
+  17:50 MAX
+  13:00 ÍSL TAL Salur 4
+  15:15 EN TAL Salur 4
+  14:45 Salur 1 ENS TEXTI
+  20:00 3D 3D Salur 1                      (tag appears twice)
+  19:30 Salur 1 Tvöföld sýning
+  14:00 Salur 1 Eldriborgarabíó
+  21:00 Salur 1 Partísýning
+  21:00 Salur 2 ENS TEXTIjapanskt horror fest   (two tags run together)
+  14:00 Salur 1 MidvikudagsbioMidvikudagsbio    (tag duplicated, no space)
+  21:00 Salur 1 Tonlist / 23:15 Salur 1 midnaetursyningar
+
+Parsing rules that held up:
+  - Time = leading \d{2}:\d{2}. Latest seen was 23:15, same calendar day.
+  - Hall names contain spaces, so do not split on spaces. Observed hall tokens:
+        Salur <n>   |   A salur   |   B salur   |   AXL   |   Ásberg
+        MAX   |   Lúxus   |   Flauel   |   S7
+  - Language tags: "ÍSL TAL" (Icelandic dub), "EN TAL" (English audio),
+    "ENS TEXTI" (English subtitles). The tag can come before OR after the hall.
+  - Anything left over is a free-text event tag (e.g. Tvöföld sýning,
+    Eldriborgarabíó, Partísýning, Svartir sunnudagar, "japanskt horror fest").
+    Some are ASCII-folded ("Tonlist") and others keep accents ("Eldriborgarabíó"),
+    so normalise.
+  - NO TAG DOES NOT MEAN ORIGINAL-LANGUAGE. Example: Laugarásbíó's English
+    Coyote vs. Acme sessions (15:15, 17:30 B salur) carry no tag, and its
+    Polish-language Forgotten Island session appears only as "13:00 AXL".
+  - The line has no date, no end time, no price and no seat count. The date is
+    the page's date. Sessions in a cinema are roughly, but not strictly, in
+    time order.
+
+
+5. SESSION IDENTIFIERS = THE BOOKING LINKS
+------------------------------------------
+Every session links to the cinema's own ticketing system. The number at the
+end is the best identifier for a session.
+
+  Cinema                        URL pattern                                  Id
+  ----------------------------  -------------------------------------------  ------------
+  Sambioin Egilshöll/Kringlunni https://www.sambio.is/websales/show/<id>     6 digits,
+  (and Akureyri)                                                             ~419026-429958
+  Smarabio                      https://eu.internet-ticketing.com/sales/     5 digits,
+                                SMAICE/book?perfcode=<id>                    ~27382-29796
+  Laugarasbio                   https://bokun.laugarasbio.is/#/book/<id>     5 digits,
+                                                                             ~19198-19587
+  Bio Paradis                   https://tickets.bioparadis.is/#/book/<id>    5 digits,
+                                                                             ~17814-19581
+
+Notes:
+  - The Laugarasbio and Paradis ranges overlap, so ids are NOT unique across
+    cinemas. Use (cinema, booking_id) as the key.
+  - Laugarasbio's own site writes the link as "#book/<id>" (no slash) while
+    Kvikmyndir.is writes "#/book/<id>". Extract the number, not the string.
+  - "SMAICE" in the Smarabio URL is a constant venue code.
+  - IDs matched between the day listing and the film page. For Primetime they
+    were Laugarasbio 19453, 19462, 19468, 19474 (24-27 Oct) and Egilshöll
+    429654, 429657, 429660, 429663 (24-27 Oct), 429799 (28 Oct), 429845
+    (29 Oct). They also matched Laugarasbio's own website.
+  - The same booking ids appear on the cinemas' own sites (for example Sambio's
+    /websales/show/<id>), so they work as a join key if you also scrape those.
+
+
+6. CINEMAS AS ENTITIES
+----------------------
+Names exactly as in the section headings:
+  "Bíó Paradís", "Laugarásbíó", "Sambíóin Egilshöll", "Sambíóin Kringlunni",
+  "Smárabíó", "Sambíóin Akureyri"
+- I saw no numeric cinema id. Use the name as the key.
+- The three Sambio locations all link to /bio/sambioin/, so the link cannot
+  tell them apart. Use the heading text, or the logo file name:
+  logo_sambioegilsholl.png, logo_sambiokringlunni.png, logo_smarabio.png,
+  logo_laugarasbio.png, logo_bioparadis.png.
+- Sambioin Akureyri is in the cinema filter but had no sessions in any listing
+  I read. Sambio Alfabakki is not a Kvikmyndir.is cinema.
+- Halls have no ids. Use (cinema, hall_name). Observed:
+    Laugarásbíó          A salur, B salur, AXL
+    Sambíóin Egilshöll   Salur 1, 2, 3, 4
+    Sambíóin Kringlunni  Salur 1, 2, 3, Ásberg
+    Smárabíó             MAX, Lúxus, Flauel, S7, Salur 2, Salur 4, Salur 5
+    Bíó Paradís          Salur 1, 2, 3
+  (A hall with no screening that week would not appear.)
+
+
+7. FILMS AS ENTITIES (/mynd/?id=N)
+----------------------------------
+- Ids are integers, roughly in the order films were added to the site, not by
+  release date. Current films are around 17800-19000; older films have much
+  smaller ids (e.g. Halloween 1978 = 969, The Exorcist 1973 = 1909,
+  Hlemmur 2002 = 3989).
+- One film id covers all language versions. "Coyote vs. Acme" in Icelandic and
+  English is one id (18822), told apart only by the session tags. The cinemas'
+  own sites list them as separate events, so do not expect a 1:1 match.
+- DUPLICATE FILM IDS EXIST. On the 30 Oct page, IceGuys appears twice:
+  id 18883 (no poster, no runtime, no rating; used for Sambio, Laugarasbio and
+  Bio Paradis) and id 18750 "Iceguys – kvikmyndin" (poster, 1 h 40; used for
+  Smarabio). Same movie, split by feed. Plan a merge table (match on normalised
+  title + year, then confirm by hand).
+- Titles are a mix of original English and Icelandic ("Forgotten Island" here,
+  "Gleymda eyjan" on the cinemas' sites; "Skrímslaskólinn" is Icelandic).
+  Match across sources by this site's film id, not by name.
+- Some titles contain soft hyphens (U+00AD), e.g. "Ic­eg­u­ys". Strip them.
+  Keep everything in UTF-8; Icelandic letters (þ ð æ ö á í ú é ó) are normal.
+- Events other than ordinary releases are listed as films: concerts and live
+  viewings (BTS, Ozzy), re-releases (Interstellar, The Thing, Halloween),
+  double features (tagged Tvöföld sýning), club nights and film festivals.
+  There is no separate "type" field; use the tags and the "Frumsýning" word.
+- The film page also has: runtime, genres, director, writer, cast (links to
+  /nafn/?id=), Icelandic plot, English tagline, scores (IMDb, TMDB,
+  Metacritic, Letterboxd), Icelandic release date ("Frumsýnd á Íslandi"),
+  US rating, budget/box office, age rating with reason icons, trailer, similar
+  films.
+
+
+8. FILM PAGE "SÝNINGATÍMAR" SECTION
+-----------------------------------
+- Shows a row of day tabs ("Í dag 24.okt", "Á morgun 25.okt", "Mán 26.okt", ...)
+  for only the days that film has sessions (Primetime had six), then the
+  sessions for those days with cinema names. Same booking links as the day
+  page.
+- In my converted view the tab labels were separated from the lists and the
+  sessions came out as one flat run in date order. Match them by position, or
+  better, read the real HTML where each tab panel should carry its own date.
+- Each session link has a title text "Búin kl. ~HH:MM" (estimated end time),
+  about 20 minutes longer than start + runtime (19:50 start, 1 h 49 film,
+  shown ending ~22:01).
+
+
+9. SUGGESTED MINIMAL SCHEMA
+---------------------------
+cinemas   (name PK, kvik_page)
+halls     (cinema, hall_name)                          PK (cinema, hall_name)
+films     (kvik_film_id PK, title, year, runtime_min, age_rating, imdb_id,
+           genres, merged_into_film_id NULL)
+sessions  (cinema, booking_id, kvik_film_id, show_date, show_time, hall,
+           language_tag, subtitle_tag, format_tag, event_tag, booking_url,
+           page_updated_at, scraped_at)               PK (cinema, booking_id)
+
+Runtime parse: "(\d+) klst (\d+) mín" -> h*60+m, or "(\d+) mín" -> m.
+Upsert on (cinema, booking_id). A session that disappears from a later scrape
+of the same day is probably cancelled or sold out; I did not see how the site
+shows either, so mark rather than delete.
+
+
+10. SCRAPE PLAN THAT FITS WHAT I SAW
+------------------------------------
+1. Fetch dagur=0..21 once or twice a day. Check the parsed date against the
+   requested day; retry on a mismatch.
+2. Parse film blocks -> session lines. Fetch /mynd/?id= only for film ids you
+   have not seen before.
+3. Re-scrape days 3-21 more often as the date approaches (they are incomplete
+   early on).
+4. Store page_updated_at so you can tell stale pages from fresh ones.
+5. Rate limits are unknown. I made about 15 requests over a few minutes with no
+   errors, but that is not a test of limits.
+
+
+11. NOT VERIFIED
+----------------
+- Raw HTML structure, selectors, embedded JSON.
+- The official API (/forritaskil/), robots.txt, terms of service.
+- What ?kvik_setlang=en does to the tags and labels.
+- Whether the cinema/genre filters and the "Eftir mynd / Eftir tíma" toggle are
+  client-side or change the URL.
+- Pages beyond dagur=7 (the navigation goes to 21).
+- How cancellations and sold-out shows are displayed.
+- Sambioin Akureyri (never had sessions in the pages I read).
+
+
+12. THE CINEMAS' OWN SITES (SECONDARY)
+--------------------------------------
+- laugarasbio.is: server-rendered; today's films and times are in the page; film
+  pages are /kvikmynd/<Slug>/<YYYY-MM-DD>; booking ids are the same as on
+  Kvikmyndir.is. Easy to read directly.
+- sambio.is: event pages /event/<id>/<slug> (ids like 3441 for Primetime).
+  /showtimes loads each day with JavaScript; my fetch ignored the date
+  parameter and returned 14 Oct. Its show ids are the same /websales/show/<id>
+  numbers used on Kvikmyndir.is.
+- smarabio.is/bio: loads with JavaScript; my fetch returned a template where
+  every film showed the same "19:40 Lúxus". Not usable without a real browser.
+  Film pages look like /kvikmyndir/<slug>-<6 characters>.
+- Because the booking ids are shared, Kvikmyndir.is is the simplest single
+  source for sessions, and the cinema sites are best used only to enrich film
+  details.

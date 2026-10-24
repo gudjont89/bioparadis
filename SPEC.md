@@ -1,6 +1,6 @@
 # Bíó Paradís — Android App Implementation Spec
 
-> **Status:** the project has moved from a native Android app to a static TypeScript site (Vite + Preact, GitHub Pages, scheduled scraping). See [README.md](README.md). The product behaviour (§1–2, §3.1–3.4, §6) still applies; the Kotlin/Compose stack and layout sketches (§4, §5.2) are historical, and the prototype is now `docs/reference-ui.html`. The timeline is now **vertical** (time runs down the page, three lane columns, app capped at 480px) and the detail panel is a bottom sheet, so the horizontal-scroll wording in §2.1 and §5 no longer applies.
+> **Status:** the project has moved from a native Android app to a static TypeScript site (Vite + Preact, GitHub Pages, scheduled scraping). See [README.md](README.md). The product behaviour (§1–2, §3.1–3.4, §6) still applies; the Kotlin/Compose stack and layout sketches (§4, §5.2) are historical, and the prototype is now `docs/reference-ui.html`. The timeline is now **vertical** (time runs down the page, three lane columns, app capped at 480px) and the detail panel is a bottom sheet, so the horizontal-scroll wording in §2.1 and §5 no longer applies. Data now comes from the Kvikmyndir.is API (see README), which publishes halls, so each lane is a named hall (Salur 1–3) rather than a heuristic slot, and the schedule covers up to three weeks.
 
 ## 1. Product Overview
 
