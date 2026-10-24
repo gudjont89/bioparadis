@@ -1,6 +1,6 @@
 import { Fragment } from "preact";
 import { useEffect, useRef } from "preact/hooks";
-import { groupByLane, HALLS, timeToMinutes } from "../shared/lanes";
+import { groupByLane, timeToMinutes } from "../shared/lanes";
 import type { Day, Movie } from "../shared/types";
 import { hourRange, minuteToY, PX_PER_MIN, TIMELINE_PAD_Y } from "../lib/layout";
 import type { ReykjavikNow } from "../lib/time";
@@ -9,6 +9,8 @@ import { MovieCard } from "./MovieCard";
 
 interface Props {
   day: Day;
+  /** The cinema's halls, one lane each. */
+  halls: string[];
   movies: Record<string, Movie>;
   tracking: TrackingMap;
   selectedId: string | null;
@@ -18,7 +20,7 @@ interface Props {
 
 const pad = (n: number) => String(n % 24).padStart(2, "0");
 
-export function Timeline({ day, movies, tracking, selectedId, now, onSelect }: Props) {
+export function Timeline({ day, halls, movies, tracking, selectedId, now, onSelect }: Props) {
   const tlRef = useRef<HTMLDivElement>(null);
   const isToday = day.date === now.date;
   const { start, end } = hourRange(day.screenings, movies);
@@ -47,13 +49,14 @@ export function Timeline({ day, movies, tracking, selectedId, now, onSelect }: P
     );
   }
 
+  const columns = `repeat(${halls.length}, minmax(0, 1fr))`;
   const showNow = isToday && now.minutes >= rangeStart && now.minutes <= end * 60;
   const hours = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
   return (
     <>
-    <div class="lane-hd" aria-hidden="true">
-      {HALLS.map((h) => (
+    <div class="lane-hd" aria-hidden="true" style={{ gridTemplateColumns: columns }}>
+      {halls.map((h) => (
         <div key={h}>{h}</div>
       ))}
     </div>
@@ -69,8 +72,8 @@ export function Timeline({ day, movies, tracking, selectedId, now, onSelect }: P
           </Fragment>
         );
       })}
-      <div class="lanes">
-        {groupByLane(day.screenings).map((lane, i) => (
+      <div class="lanes" style={{ gridTemplateColumns: columns }}>
+        {groupByLane(day.screenings, halls.length).map((lane, i) => (
           <div class="lane" key={i}>
             {lane.map((s) => {
               const movie = movies[s.movieId];

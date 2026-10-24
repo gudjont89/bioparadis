@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import { DateChips } from "./components/DateChips";
 import { DetailSheet } from "./components/DetailSheet";
 import { Timeline } from "./components/Timeline";
+import { useSelectedCinema } from "./lib/cinema";
 import { loadSchedule } from "./lib/schedule";
 import { reykjavikNow } from "./lib/time";
 import { useTracking } from "./lib/tracking";
-import type { Schedule } from "./shared/types";
+import { CINEMAS } from "./shared/cinemas";
+import type { Day, Schedule } from "./shared/types";
 
 type Load = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; schedule: Schedule };
 
@@ -31,6 +33,7 @@ export function App() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { tracking, toggle } = useTracking();
+  const [cinema, selectCinema] = useSelectedCinema();
   const now = useNow();
 
   const fetchSchedule = () => {
@@ -42,11 +45,15 @@ export function App() {
   };
   useEffect(fetchSchedule, []);
 
-  // Past days are not useful; drop them.
-  const days = useMemo(
-    () => (load.state === "ready" ? load.schedule.days.filter((d) => d.date >= now.date) : []),
-    [load, now.date],
-  );
+  // This cinema's screenings, without past days or trailing days it has nothing on yet.
+  const days = useMemo(() => {
+    if (load.state !== "ready") return [];
+    const own: Day[] = load.schedule.days
+      .filter((d) => d.date >= now.date)
+      .map((d) => ({ ...d, screenings: d.screenings.filter((s) => s.cinemaId === cinema.id) }));
+    while (own.length > 0 && own.at(-1)?.screenings.length === 0) own.pop();
+    return own;
+  }, [load, now.date, cinema.id]);
   const activeDate = days.find((d) => d.date === selectedDate)?.date ?? days.find((d) => d.date === now.date)?.date ?? days[0]?.date;
   const day = days.find((d) => d.date === activeDate);
 
@@ -58,10 +65,22 @@ export function App() {
   return (
     <div class={`app${selected && selectedMovie ? " has-sheet" : ""}`}>
       <header class="hdr">
-        <h1 class="hdr-t">
-          <img src={`${import.meta.env.BASE_URL}logos/bioparadis.png`} alt="Bíó Paradís" width={150} height={22} />
-        </h1>
-        <div class="hdr-s">Hverfisgata 54</div>
+        <h1 class="sr-only">{cinema.name} showtimes</h1>
+        <nav class="cinemas" aria-label="Choose a cinema">
+          {CINEMAS.map((c) => (
+            <button
+              key={c.id}
+              class={`cin${c.id === cinema.id ? " act" : ""}`}
+              aria-pressed={c.id === cinema.id}
+              onClick={() => {
+                selectCinema(c.id);
+                setSelectedId(null);
+              }}
+            >
+              <img src={`${import.meta.env.BASE_URL}${c.logo}`} alt={c.name} />
+            </button>
+          ))}
+        </nav>
       </header>
 
       {load.state === "loading" && <div class="empty">Loading schedule…</div>}
@@ -94,6 +113,7 @@ export function App() {
           />
           <Timeline
             day={day}
+            halls={cinema.halls}
             movies={movies}
             tracking={tracking}
             selectedId={selectedId}
@@ -104,6 +124,7 @@ export function App() {
             <DetailSheet
               screening={selected}
               movie={selectedMovie}
+              cinema={cinema}
               allShowings={allScreenings.filter((s) => s.movieId === selected.movieId)}
               status={tracking[selected.movieId]}
               now={now}

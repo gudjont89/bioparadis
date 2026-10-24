@@ -9,8 +9,8 @@ export default defineConfig({
     preact(),
     VitePWA({
       registerType: "autoUpdate",
-      // Only the logo the app shows; the other cinemas' logos stay out of the offline cache.
-      includeAssets: ["icon.svg", "logos/bioparadis.png"],
+      // Only the logos of cinemas in src/shared/cinemas.ts; the others stay out of the offline cache.
+      includeAssets: ["icon.svg", "logos/bioparadis.png", "logos/laugarasbio.png"],
       manifest: {
         name: "Bíó Paradís",
         short_name: "Bíó Paradís",

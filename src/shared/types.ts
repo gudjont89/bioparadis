@@ -20,9 +20,30 @@ export interface Movie {
   color: string;
 }
 
+export interface Cinema {
+  /** Key used in schedule.json and localStorage. */
+  id: string;
+  /** kvikmyndir.is cinema id. */
+  kvikId: number;
+  name: string;
+  /** Calendar event location. */
+  location: string;
+  /** Hall names as the API writes them, one lane each, in display order. */
+  halls: string[];
+  /** Path under `public/`. */
+  logo: string;
+  /**
+   * Whether a session with no subtitle line on kvikmyndir.is really has no
+   * subtitles. Verified against the cinema's own site for Bíó Paradís only.
+   */
+  unmarkedMeansNoSubs: boolean;
+}
+
 export interface Screening {
   /** Ticket URL when present, otherwise `movieId_date_time`. */
   id: string;
+  /** `Cinema.id`. */
+  cinemaId: string;
   movieId: string;
   /** `YYYY-MM-DD`, Atlantic/Reykjavik. */
   date: string;
@@ -34,7 +55,7 @@ export interface Screening {
   subtitleType: string;
   ticketUrl: string;
   events: EventType[];
-  /** 0..2: the hall's index in `HALLS`, or a heuristic slot when the hall is unknown. */
+  /** The hall's index in `Cinema.halls`, or a heuristic slot when the hall is unknown. */
   lane: number;
 }
 

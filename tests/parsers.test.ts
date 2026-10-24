@@ -5,7 +5,7 @@ import { eventsFromTag, parseDayPage, parseShowtimes } from "../scripts/parsers"
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
 describe("parseShowtimes", () => {
-  const day = parseShowtimes(fixture("showtimes.json"), 5);
+  const day = parseShowtimes(fixture("showtimes.json"), [5]);
 
   it("reads the date and keeps only the requested cinema", () => {
     expect(day.date).toBe("2026-10-24");
@@ -26,10 +26,23 @@ describe("parseShowtimes", () => {
       posterUrl: "https://kvikmyndir.is/images/poster/18655_500.jpg",
     });
     expect(day.screenings.find((s) => s.ticketUrl.endsWith("/19373"))).toEqual({
+      cinema: 5,
       movieId: "18655",
       time: "16:30",
       hall: "Salur 1",
       ticketUrl: "https://tickets.bioparadis.is/#/book/19373",
+    });
+  });
+
+  it("keeps several cinemas, tagged with their ids", () => {
+    const both = parseShowtimes(fixture("showtimes.json"), [5, 4]);
+    expect(both.screenings.filter((s) => s.cinema === 5)).toHaveLength(12);
+    expect(both.screenings.filter((s) => s.cinema === 4)).toHaveLength(15);
+    expect(both.screenings.find((s) => s.ticketUrl.endsWith("/19210"))).toMatchObject({
+      cinema: 4,
+      movieId: "18315", // Clayface
+      time: "20:00",
+      hall: "AXL",
     });
   });
 
@@ -43,20 +56,20 @@ describe("parseShowtimes", () => {
       data: [
         {
           id: 18883,
-          title: "Ic­eg­u­ys",
+          title: "Ic\u00adeg\u00adu\u00adys",
           durationMinutes: null,
           poster: null, // as the API sends it for IceGuys
           showtimes: [{ cinema: 5, schedule: [{ time: "9.50", hall: "Salur 1", purchase_url: "u" }] }],
         },
       ],
     });
-    const { movies, screenings } = parseShowtimes(json, 5);
+    const { movies, screenings } = parseShowtimes(json, [5]);
     expect(movies[0]).toMatchObject({ title: "Iceguys", runtime: null, posterUrl: "" });
     expect(screenings[0]?.time).toBe("09:50");
   });
 
   it("throws on an error body", () => {
-    expect(() => parseShowtimes('{"error":{"status":401,"code":"missing_key"}}', 5)).toThrow(/Unexpected/);
+    expect(() => parseShowtimes('{"error":{"status":401,"code":"missing_key"}}', [5])).toThrow(/Unexpected/);
   });
 });
 
@@ -67,7 +80,7 @@ describe("parseDayPage", () => {
   it("reads subtitles from the session tooltip", () => {
     expect(get(19373)?.subtitleType).toBe("ICE SUB"); // Fjord 16:30
     expect(get(19374)?.subtitleType).toBe("ENG SUB"); // Fjord 18:45
-    expect(get(19551)?.subtitleType).toBe("NO SUB"); // Tony
+    expect(get(19551)?.subtitleType).toBe(""); // Tony: no subtitle line
   });
 
   it("maps event tags", () => {
@@ -77,7 +90,7 @@ describe("parseDayPage", () => {
   });
 
   it("covers every Bíó Paradís session the API returns for the same day", () => {
-    const api = parseShowtimes(fixture("showtimes.json"), 5);
+    const api = parseShowtimes(fixture("showtimes.json"), [5]);
     expect(api.screenings.every((s) => extras.has(s.ticketUrl))).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildSchedule, type FetchText } from "../scripts/build-schedule";
+import { cinemaById } from "../src/shared/cinemas";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const emptyDay = (offset: number) => JSON.stringify({ date: `2026-11-${String(offset).padStart(2, "0")}`, data: [] });
@@ -22,11 +23,14 @@ describe("buildSchedule", () => {
 
     expect(schedule.generatedAt).toBe("2026-10-24T12:00:00.000Z");
     expect(schedule.days.map((d) => d.date)).toEqual(["2026-10-24"]); // trailing empty days dropped
-    const screenings = schedule.days[0]?.screenings ?? [];
+    const all = schedule.days[0]?.screenings ?? [];
+    const screenings = all.filter((s) => s.cinemaId === "bioparadis");
     expect(screenings).toHaveLength(12);
+    expect(all.filter((s) => s.cinemaId === "laugarasbio")).toHaveLength(15);
 
     expect(screenings.find((s) => s.ticketUrl.endsWith("/19374"))).toMatchObject({
       id: "https://tickets.bioparadis.is/#/book/19374",
+      cinemaId: "bioparadis",
       movieId: "18655",
       date: "2026-10-24",
       time: "18:45",
@@ -36,7 +40,17 @@ describe("buildSchedule", () => {
       lane: 1,
     });
     expect(screenings.find((s) => s.ticketUrl.endsWith("/18865"))?.events).toEqual(["party"]);
-    expect(screenings.every((s) => s.lane === Number(s.hall.slice(-1)) - 1)).toBe(true);
+    expect(all.every((s) => s.lane === cinemaById(s.cinemaId).halls.indexOf(s.hall))).toBe(true);
+
+    // An unmarked session means "no subtitles" only at Bíó Paradís.
+    expect(screenings.find((s) => s.ticketUrl.endsWith("/19551"))?.subtitleType).toBe("NO SUB"); // Tony
+    expect(all.find((s) => s.ticketUrl.endsWith("/19198"))).toMatchObject({
+      cinemaId: "laugarasbio",
+      hall: "A salur",
+      lane: 0,
+      subtitleType: "",
+    });
+    expect(all.find((s) => s.ticketUrl.endsWith("/19210"))).toMatchObject({ hall: "AXL", lane: 2, subtitleType: "ICE SUB" });
 
     expect(schedule.movies["18655"]).toMatchObject({
       title: "Fjord",
@@ -53,7 +67,7 @@ describe("buildSchedule", () => {
       return fetchFromFixtures(url, headers);
     }, "test-key");
     const screenings = schedule.days[0]?.screenings ?? [];
-    expect(screenings).toHaveLength(12);
+    expect(screenings).toHaveLength(27);
     expect(screenings.every((s) => s.subtitleType === "" && s.events.length === 0)).toBe(true);
   });
 

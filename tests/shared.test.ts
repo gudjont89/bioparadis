@@ -4,6 +4,7 @@ import { assignLanes } from "../src/shared/lanes";
 
 describe("assignLanes", () => {
   const runtimeOf = (s: { runtime: number }) => s.runtime;
+  const halls = ["Salur 1", "Salur 2", "Salur 3"];
 
   it("puts overlapping screenings in different lanes", () => {
     const out = assignLanes(
@@ -13,6 +14,7 @@ describe("assignLanes", () => {
         { time: "19:00", runtime: 100 },
       ],
       runtimeOf,
+      halls,
     );
     expect(out.map((s) => s.lane)).toEqual([0, 1, 2]);
   });
@@ -25,6 +27,7 @@ describe("assignLanes", () => {
         { time: "15:54", runtime: 90 },
       ],
       runtimeOf,
+      halls,
     );
     expect(out.map((s) => [s.time, s.lane])).toEqual([
       ["14:00", 0],
@@ -42,6 +45,7 @@ describe("assignLanes", () => {
         { time: "18:10", runtime: 90 },
       ],
       runtimeOf,
+      halls,
     );
     expect(out[3]?.lane).toBe(1); // lane 1 ends first (18:00 + 115)
   });
@@ -54,13 +58,26 @@ describe("assignLanes", () => {
         { time: "19:00", runtime: 100 }, // unknown hall: first free lane
       ],
       runtimeOf,
+      halls,
     );
     expect(out.map((s) => s.lane)).toEqual([2, 0, 1]);
   });
 
+  it("uses the given cinema's hall names", () => {
+    const out = assignLanes(
+      [
+        { time: "18:00", runtime: 100, hall: "AXL" },
+        { time: "18:00", runtime: 100, hall: "A salur" },
+      ],
+      runtimeOf,
+      ["A salur", "B salur", "AXL"],
+    );
+    expect(out.map((s) => s.lane)).toEqual([2, 0]);
+  });
+
   it("does not mutate its input", () => {
     const input = [{ time: "20:00", runtime: 90 }, { time: "14:00", runtime: 90 }];
-    assignLanes(input, runtimeOf);
+    assignLanes(input, runtimeOf, halls);
     expect(input[0]?.time).toBe("20:00");
   });
 });

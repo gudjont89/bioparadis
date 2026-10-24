@@ -1,6 +1,4 @@
-import type { Movie, Screening } from "../shared/types";
-
-const LOCATION = "Hverfisgata 54, 101 Reykjavík";
+import type { Cinema, Movie, Screening } from "../shared/types";
 
 /**
  * Iceland is UTC+0 all year (no DST), so Reykjavík wall-clock time equals UTC
@@ -22,13 +20,13 @@ function details(s: Screening): string {
   return s.ticketUrl ? `Buy tickets: ${s.ticketUrl}` : "";
 }
 
-export function googleCalendarUrl(s: Screening, movie: Movie): string {
+export function googleCalendarUrl(s: Screening, movie: Movie, cinema: Cinema): string {
   const { start, end } = screeningWindow(s, movie.runtime);
   const params = new URLSearchParams({
     action: "TEMPLATE",
-    text: `Bíó Paradís: ${movie.title}`,
+    text: `${cinema.name}: ${movie.title}`,
     dates: `${stamp(start)}/${stamp(end)}`,
-    location: LOCATION,
+    location: cinema.location,
     details: details(s),
   });
   return `https://calendar.google.com/calendar/render?${params}`;
@@ -38,7 +36,7 @@ function escapeIcs(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
-export function icsFile(s: Screening, movie: Movie, now = new Date()): string {
+export function icsFile(s: Screening, movie: Movie, cinema: Cinema, now = new Date()): string {
   const { start, end } = screeningWindow(s, movie.runtime);
   return [
     "BEGIN:VCALENDAR",
@@ -49,8 +47,8 @@ export function icsFile(s: Screening, movie: Movie, now = new Date()): string {
     `DTSTAMP:${stamp(now)}`,
     `DTSTART:${stamp(start)}`,
     `DTEND:${stamp(end)}`,
-    `SUMMARY:${escapeIcs(`Bíó Paradís: ${movie.title}`)}`,
-    `LOCATION:${escapeIcs(LOCATION)}`,
+    `SUMMARY:${escapeIcs(`${cinema.name}: ${movie.title}`)}`,
+    `LOCATION:${escapeIcs(cinema.location)}`,
     ...(s.ticketUrl ? [`DESCRIPTION:${escapeIcs(details(s))}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",
@@ -58,8 +56,8 @@ export function icsFile(s: Screening, movie: Movie, now = new Date()): string {
   ].join("\r\n");
 }
 
-export function downloadIcs(s: Screening, movie: Movie): void {
-  const blob = new Blob([icsFile(s, movie)], { type: "text/calendar;charset=utf-8" });
+export function downloadIcs(s: Screening, movie: Movie, cinema: Cinema): void {
+  const blob = new Blob([icsFile(s, movie, cinema)], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

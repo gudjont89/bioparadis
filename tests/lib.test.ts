@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { googleCalendarUrl, icsFile, screeningWindow } from "../src/lib/calendar";
+import { cinemaById } from "../src/shared/cinemas";
 import { cardHeight, hourRange, MIN_CARD_HEIGHT, minuteToY, PX_PER_MIN, TIMELINE_PAD_Y } from "../src/lib/layout";
 import { dayLabel, endTime, formatMinutes, hasStarted, reykjavikNow } from "../src/lib/time";
 import { readTracking, toggled } from "../src/lib/tracking";
 import type { Movie, Screening } from "../src/shared/types";
 
+const bioParadis = cinemaById("bioparadis");
+const laugarasbio = cinemaById("laugarasbio");
 const movie: Movie = {
   id: "1", slug: "pillion", title: "Pillion, The Film", runtime: 121,
   posterUrl: "", detailUrl: "", color: "#000000",
 };
 const screening: Screening = {
-  id: "https://tickets.bioparadis.is/#/book/1", movieId: "1", date: "2026-10-23", time: "23:00",
+  id: "https://tickets.bioparadis.is/#/book/1", cinemaId: "bioparadis", movieId: "1", date: "2026-10-23", time: "23:00",
   hall: "Salur 1", subtitleType: "", ticketUrl: "https://tickets.bioparadis.is/#/book/1", events: [], lane: 0,
 };
 
@@ -48,7 +51,7 @@ describe("calendar", () => {
   });
 
   it("builds a Google Calendar template URL", () => {
-    const url = new URL(googleCalendarUrl(screening, movie));
+    const url = new URL(googleCalendarUrl(screening, movie, bioParadis));
     expect(url.origin + url.pathname).toBe("https://calendar.google.com/calendar/render");
     expect(url.searchParams.get("action")).toBe("TEMPLATE");
     expect(url.searchParams.get("text")).toBe("Bíó Paradís: Pillion, The Film");
@@ -58,12 +61,18 @@ describe("calendar", () => {
   });
 
   it("builds a valid, escaped .ics file", () => {
-    const ics = icsFile(screening, movie, new Date("2026-10-20T12:00:00Z"));
+    const ics = icsFile(screening, movie, bioParadis, new Date("2026-10-20T12:00:00Z"));
     expect(ics.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
     expect(ics).toContain("DTSTART:20261023T230000Z");
     expect(ics).toContain("DTEND:20261024T010100Z");
     expect(ics).toContain("SUMMARY:Bíó Paradís: Pillion\\, The Film");
     expect(ics.trimEnd().endsWith("END:VCALENDAR")).toBe(true);
+  });
+
+  it("uses the screening's cinema for the title and location", () => {
+    const url = new URL(googleCalendarUrl(screening, movie, laugarasbio));
+    expect(url.searchParams.get("text")).toBe("Laugarásbíó: Pillion, The Film");
+    expect(url.searchParams.get("location")).toBe("Laugarási, 104 Reykjavík");
   });
 });
 

@@ -1,12 +1,13 @@
 import { useEffect } from "preact/hooks";
 import { EVENTS } from "../shared/events";
-import type { Movie, Screening, TrackingStatus } from "../shared/types";
+import type { Cinema, Movie, Screening, TrackingStatus } from "../shared/types";
 import { downloadIcs, googleCalendarUrl } from "../lib/calendar";
 import { dayLabel, endTime, hasStarted, type ReykjavikNow } from "../lib/time";
 
 interface Props {
   screening: Screening;
   movie: Movie;
+  cinema: Cinema;
   /** Every loaded screening of this movie, across days. */
   allShowings: Screening[];
   status: TrackingStatus | undefined;
@@ -21,7 +22,7 @@ const TRACKING: { status: TrackingStatus; icon: string; title: string; cls: stri
   { status: "skip", icon: "✕", title: "Not interested", cls: "ak" },
 ];
 
-export function DetailSheet({ screening, movie, allShowings, status, now, onTrack, onClose }: Props) {
+export function DetailSheet({ screening, movie, cinema, allShowings, status, now, onTrack, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -70,10 +71,10 @@ export function DetailSheet({ screening, movie, allShowings, status, now, onTrac
             Tickets
           </a>
         )}
-        <a class="btn btn-cal" href={googleCalendarUrl(screening, movie)} target="_blank" rel="noopener">
+        <a class="btn btn-cal" href={googleCalendarUrl(screening, movie, cinema)} target="_blank" rel="noopener">
           + Google Cal
         </a>
-        <button class="btn btn-cal" onClick={() => downloadIcs(screening, movie)} title="Download .ics file">
+        <button class="btn btn-cal" onClick={() => downloadIcs(screening, movie, cinema)} title="Download .ics file">
           .ics
         </button>
         <div class="sep" />

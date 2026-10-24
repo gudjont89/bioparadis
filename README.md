@@ -1,6 +1,6 @@
 # Bíó Paradís schedule
 
-A Gantt-style timeline of the weekly screenings at [Bíó Paradís](https://bioparadis.is) (Reykjavík): three swimlanes, event badges, per-movie tracking (want / seen / skip), and add-to-calendar. A static site (Vite + Preact + TypeScript) that installs as a PWA.
+A Gantt-style timeline of the screenings at Reykjavík cinemas, currently [Bíó Paradís](https://bioparadis.is) and [Laugarásbíó](https://laugarasbio.is): one swimlane per hall, a logo bar to switch cinema, event badges, per-movie tracking (want / seen / skip), and add-to-calendar. A static site (Vite + Preact + TypeScript) that installs as a PWA.
 
 ## How it works
 
@@ -14,7 +14,7 @@ If the scrape fails (bad key, API down, empty schedule) the job exits non-zero *
 
 ```
 scripts/        scraper: parsers.ts (API JSON + HTML → raw data), build-schedule.ts (pipeline), scrape.ts (CLI)
-src/shared/     types and logic shared by scraper and site (lane assignment, colors, events)
+src/shared/     types and logic shared by scraper and site (cinema list, lane assignment, colors, events)
 src/            the Preact app (components/, lib/)
 tests/          vitest; parsers run against a real API response and day page in tests/fixtures/
 docs/           reference-ui.html (original prototype)
@@ -40,8 +40,10 @@ Repo settings → Pages → Source: **GitHub Actions**. Add the API key as a rep
 ## Scraping notes
 
 - Get a personal API key by signing in at kvikmyndir.is and creating one under Stillingar (60 requests/min, 10,000/day). The terms ask for attribution and a link back to the film page, which the footer and the detail sheet's title provide.
-- Each scrape makes 22 API calls (`/showtimes?offset=0..21`, filtered to Bíó Paradís, cinema id 5) and fetches 22 `/bio/syningatimar/?dagur=N` pages. The API has halls, runtimes and ticket URLs but no subtitles or event tags; those are read from the day pages and matched by ticket URL. If a day page fails, that day's sessions just lack subtitles and badges.
-- Each hall (Salur 1–3) is a lane on the timeline. Sessions with an unknown hall fall back to the greedy lane assignment.
+- Each scrape makes 22 API calls (`/showtimes?offset=0..21`, filtered to the cinemas in `src/shared/cinemas.ts`) and fetches 22 `/bio/syningatimar/?dagur=N` pages. The API has halls, runtimes and ticket URLs but no subtitles or event tags; those are read from the day pages and matched by ticket URL. If a day page fails, that day's sessions just lack subtitles and badges.
+- Each hall is a lane on the timeline, in the order of the cinema's `halls`. Sessions with an unknown hall fall back to the greedy lane assignment.
+- A session with no subtitle line on kvikmyndir.is is shown as `NO SUB` only for cinemas with `unmarkedMeansNoSubs` (Bíó Paradís, checked against its own site). At Laugarásbíó, unmarked sessions include Icelandic-dubbed and English-language ones, so their subtitles are left blank.
+- To add a cinema: add an entry to `CINEMAS` in `src/shared/cinemas.ts` (kvikmyndir.is id from `/api/v2/theaters`, hall names exactly as the API writes them, logo), add its logo to `includeAssets` in `vite.config.ts`, and check its halls don't overlap in a live scrape.
 - The API's `language` field is the spoken language (e.g. `NO`, `KR`), not subtitles, so it isn't used.
 - Event tags are free text with inconsistent accents (`midnaetursyningar`, `Partísýning`); `eventsFromTag` in `scripts/parsers.ts` maps them. Unmapped tags (e.g. `Tonlist`, `italskir kvikmyndadagar`) are ignored.
 - `public/logos/` holds the cinemas' logos, downloaded from kvikmyndir.is (`/wp-content/themes/kvikmyndir/images/logo_<name>.png`). They are the cinemas' trademarks, used only to identify them.

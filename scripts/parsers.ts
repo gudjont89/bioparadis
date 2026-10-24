@@ -10,6 +10,8 @@ export interface RawMovie {
 }
 
 export interface RawScreening {
+  /** kvikmyndir.is cinema id. */
+  cinema: number;
   movieId: string;
   time: string;
   hall: string;
@@ -24,6 +26,7 @@ export interface RawDay {
 
 /** Per-session details the API leaves out, read from the kvikmyndir.is day page. */
 export interface SessionExtras {
+  /** "ICE SUB" | "ENG SUB", or empty when the page doesn't say. */
   subtitleType: string;
   events: EventType[];
 }
@@ -40,11 +43,11 @@ interface ApiMovie {
 }
 
 /**
- * Parses one `/api/v2/showtimes` response, keeping only `cinemaId`'s sessions.
+ * Parses one `/api/v2/showtimes` response, keeping only the given cinemas' sessions.
  * The API repeats some sessions verbatim, so they are de-duplicated by ticket
  * URL. Throws on anything that isn't a showtimes response (e.g. an error body).
  */
-export function parseShowtimes(json: string, cinemaId: number): RawDay {
+export function parseShowtimes(json: string, cinemaIds: number[]): RawDay {
   const body = JSON.parse(json) as { date?: string; data?: ApiMovie[] };
   if (!body.date || !Array.isArray(body.data)) throw new Error(`Unexpected showtimes response: ${json.slice(0, 200)}`);
 
@@ -52,12 +55,14 @@ export function parseShowtimes(json: string, cinemaId: number): RawDay {
   const screenings: RawScreening[] = [];
   const seen = new Set<string>();
   for (const m of body.data) {
-    const sessions = m.showtimes.filter((c) => c.cinema === cinemaId).flatMap((c) => c.schedule);
+    const sessions = m.showtimes
+      .filter((c) => cinemaIds.includes(c.cinema))
+      .flatMap((c) => c.schedule.map((s) => ({ ...s, cinema: c.cinema })));
     if (sessions.length === 0) continue;
     const movieId = String(m.id);
     movies.push({
       id: movieId,
-      title: m.title.replace(/­/g, "").trim(),
+      title: m.title.replace(/\u00ad/g, "").trim(),
       runtime: m.durationMinutes || null,
       // Films without a poster come back as null or as the bare directory, ".../poster/".
       posterUrl: !m.poster || m.poster.endsWith("/") ? "" : m.poster,
@@ -67,6 +72,7 @@ export function parseShowtimes(json: string, cinemaId: number): RawDay {
       if (seen.has(key)) continue;
       seen.add(key);
       screenings.push({
+        cinema: s.cinema,
         movieId,
         // Some cinemas write "17.50".
         time: s.time.trim().replace(".", ":").padStart(5, "0"),
@@ -94,7 +100,7 @@ export function parseDayPage(html: string): Map<string, SessionExtras> {
       .toArray()
       .map((b) => $(b).text().trim());
     extras.set(link.attr("href") ?? "", {
-      subtitleType: /Íslenskur texti/.test(tip) ? "ICE SUB" : /Enskur texti/.test(tip) ? "ENG SUB" : "NO SUB",
+      subtitleType: /Íslenskur texti/.test(tip) ? "ICE SUB" : /Enskur texti/.test(tip) ? "ENG SUB" : "",
       events: [...new Set(tags.flatMap(eventsFromTag))],
     });
   });

@@ -1,3 +1,4 @@
+import { CINEMAS } from "../src/shared/cinemas";
 import { colorForMovie } from "../src/shared/colors";
 import { assignLanes } from "../src/shared/lanes";
 import type { Day, Movie, Schedule, Screening } from "../src/shared/types";
@@ -6,8 +7,6 @@ import { parseDayPage, parseShowtimes, type SessionExtras } from "./parsers";
 const DEFAULT_RUNTIME = 90;
 const SITE_URL = "https://kvikmyndir.is";
 const API_URL = `${SITE_URL}/api/v2`;
-/** kvikmyndir.is cinema id for Bíó Paradís. */
-const BIO_PARADIS = 5;
 /** The site and API publish today plus 21 days. */
 const DAYS_AHEAD = 22;
 
@@ -54,7 +53,7 @@ export async function buildSchedule(fetchText: FetchText, apiKey: string, now = 
     if (!fetched) break;
     const [json, extras] = fetched;
 
-    const raw = parseShowtimes(json, BIO_PARADIS);
+    const raw = parseShowtimes(json, CINEMAS.map((c) => c.kvikId));
     for (const m of raw.movies) {
       movies[m.id] ??= {
         id: m.id,
@@ -67,18 +66,27 @@ export async function buildSchedule(fetchText: FetchText, apiKey: string, now = 
       };
     }
 
-    const laned = assignLanes(raw.screenings, (s) => movies[s.movieId]?.runtime ?? DEFAULT_RUNTIME);
-    const screenings: Screening[] = laned.map((s) => ({
-      id: s.ticketUrl || `${s.movieId}_${raw.date}_${s.time}`,
-      movieId: s.movieId,
-      date: raw.date,
-      time: s.time,
-      hall: s.hall,
-      subtitleType: extras.get(s.ticketUrl)?.subtitleType ?? "",
-      ticketUrl: s.ticketUrl,
-      events: extras.get(s.ticketUrl)?.events ?? [],
-      lane: s.lane,
-    }));
+    const screenings: Screening[] = CINEMAS.flatMap((cinema) => {
+      const own = raw.screenings.filter((s) => s.cinema === cinema.kvikId);
+      const laned = assignLanes(own, (s) => movies[s.movieId]?.runtime ?? DEFAULT_RUNTIME, cinema.halls);
+      return laned.map((s) => {
+        const extra = extras.get(s.ticketUrl);
+        // No day page: unknown. Day page without a subtitle line: "none" only where verified.
+        const subtitleType = extra ? extra.subtitleType || (cinema.unmarkedMeansNoSubs ? "NO SUB" : "") : "";
+        return {
+          id: s.ticketUrl || `${s.movieId}_${raw.date}_${s.time}`,
+          cinemaId: cinema.id,
+          movieId: s.movieId,
+          date: raw.date,
+          time: s.time,
+          hall: s.hall,
+          subtitleType,
+          ticketUrl: s.ticketUrl,
+          events: extra?.events ?? [],
+          lane: s.lane,
+        };
+      });
+    });
     days.push({ date: raw.date, screenings });
   }
 
