@@ -58,11 +58,10 @@ export function App() {
   return (
     <div class={`app${selected && selectedMovie ? " has-sheet" : ""}`}>
       <header class="hdr">
-        <div class="hdr-ico" aria-hidden="true">🎬</div>
-        <div>
-          <h1 class="hdr-t">Bíó Paradís</h1>
-          <div class="hdr-s">Hverfisgata 54</div>
-        </div>
+        <h1 class="hdr-t">
+          <img src={`${import.meta.env.BASE_URL}logos/bioparadis.png`} alt="Bíó Paradís" width={150} height={22} />
+        </h1>
+        <div class="hdr-s">Hverfisgata 54</div>
       </header>
 
       {load.state === "loading" && <div class="empty">Loading schedule…</div>}

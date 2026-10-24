@@ -44,4 +44,5 @@ Repo settings → Pages → Source: **GitHub Actions**. Add the API key as a rep
 - Each hall (Salur 1–3) is a lane on the timeline. Sessions with an unknown hall fall back to the greedy lane assignment.
 - The API's `language` field is the spoken language (e.g. `NO`, `KR`), not subtitles, so it isn't used.
 - Event tags are free text with inconsistent accents (`midnaetursyningar`, `Partísýning`); `eventsFromTag` in `scripts/parsers.ts` maps them. Unmapped tags (e.g. `Tonlist`, `italskir kvikmyndadagar`) are ignored.
+- `public/logos/` holds the cinemas' logos, downloaded from kvikmyndir.is (`/wp-content/themes/kvikmyndir/images/logo_<name>.png`). They are the cinemas' trademarks, used only to identify them.
 - Refresh `tests/fixtures/` by saving one day's API response and the matching day page at the same time, so their sessions agree.

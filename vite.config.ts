@@ -9,7 +9,8 @@ export default defineConfig({
     preact(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      // Only the logo the app shows; the other cinemas' logos stay out of the offline cache.
+      includeAssets: ["icon.svg", "logos/bioparadis.png"],
       manifest: {
         name: "Bíó Paradís",
         short_name: "Bíó Paradís",
@@ -27,6 +28,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        globIgnores: ["logos/**"],
         // schedule.json is fetched network-first so it stays fresh but works offline.
         runtimeCaching: [
           {
@@ -35,7 +37,7 @@ export default defineConfig({
             options: { cacheName: "schedule", networkTimeoutSeconds: 4 },
           },
           {
-            urlPattern: ({ url }) => url.hostname === "web.iceland.mycloudcinema.com",
+            urlPattern: ({ url }) => url.hostname === "kvikmyndir.is" && url.pathname.startsWith("/images/poster/"),
             handler: "CacheFirst",
             options: {
               cacheName: "posters",
